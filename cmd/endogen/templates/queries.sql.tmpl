@@ -1,0 +1,12 @@
+{{- define "querySelect" -}}
+SELECT {{.ColumnsString}} FROM {{.Table}}
+{{- end -}}
+
+{{- define "queryInsert" -}}
+{{- $columns := .ColumnsNoPrimaryKey -}}
+INSERT INTO {{.Table}} ({{joinStrings ", " $columns}}) VALUES ({{mapToParams $columns | joinStrings ", "}}){{if .PrimaryKeyField }} RETURNING {{.PrimaryKeyField.Column}}{{end}}
+{{- end -}}
+
+{{- define "queryReturning" -}}
+RETURNING {{.ColumnsString}}
+{{- end -}}
