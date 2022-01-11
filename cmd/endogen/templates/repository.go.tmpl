@@ -30,8 +30,27 @@ const (
 	queryReturning{{.Name}} = `{{template "queryReturning" .}}`
 )
 
-// Get{{.Name}} retrieves a single {{.Name}} from the database with field `byField` equal to `v`..
-func (r *Repository) Get{{.Name}}(ctx context.Context, byField string, v interface{}) (*{{.Name}}, error) {
+{{if .PrimaryKeyField}}
+// Get{{.Name}} retrieves a single {{.Name}} from the database using the primary key.
+func (r *Repository) Get{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Type}}) (*{{.Name}}, error) {
+	const query = querySelect + " WHERE {{.PrimaryKeyField.Column}} = $1"
+
+	var e {{.Name}}
+	err := r.tx(ctx, endo.TxReadOnly, func(db endo.DBTX) error {
+		row := db.QueryRowContext(ctx, query, primaryKey)
+		return scan{{.Name}}(&e, row)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	{{if .InvokeOnRead}}{{.InvokeOnRead}}(ctx, &e){{end}}
+	return &e, nil
+}
+{{end}}
+
+// Get{{.Name}}ByField retrieves a single {{.Name}} from the database with field `byField` equal to `v`.
+func (r *Repository) Get{{.Name}}ByField(ctx context.Context, byField string, v interface{}) (*{{.Name}}, error) {
 	var e {{.Name}}
 	var qb endo.Builder
 	query := qb.
@@ -50,7 +69,7 @@ func (r *Repository) Get{{.Name}}(ctx context.Context, byField string, v interfa
 	return &e, nil
 }
 
-// Get{{.Plural}} retrieves paginated {{.Plural}} from the database .
+// Get{{.Plural}} retrieves paginated {{.Plural}} from the database.
 func (r *Repository) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([]*{{.Name}}, error) {
 	const query = querySelect{{.Name}} +
 	{{- if .OrderBy -}}
@@ -113,8 +132,42 @@ func (r *Repository) Create{{.Name}}(ctx context.Context, e {{.Name}}) (*{{.Name
 {{end}}
 
 {{if not .NoUpdate}}
-// Update{{.Name}} updates all {{.Plural}} with field `byField` equal to `v`.
-func (r *Repository) Update{{.Name}}(ctx context.Context, byField string, v interface{}, p {{.PatchName}}) (*{{.Name}}, error) {
+
+{{if .PrimaryKeyField}}
+// Update{{.Name}} updates the {{.Name}} using the primary key.
+func (r *Repository) Update{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Type}}, p {{.PatchName}}) (*{{.Name}}, error) {
+	var qb endo.Builder
+	{{- if .UpdatedAtField }}
+	qb.WriteWithArgs("UPDATE {{.Table}} SET {{.UpdatedAtField.Column}} = $1", time.Now())
+	{{- else -}}
+	qb.Write("UPDATE {{.Table}} SET {{.PrimaryKeyField.Column}} = {{.PrimaryKeyField.Column}}")
+	{{- end }}
+
+	{{range .PatchFields}}
+	if p.{{.Name}} != nil {
+		qb.WriteWithPlaced(", {{.Column}} = ?", *p.{{.Name}})
+	}
+	{{- end}}
+	qb.WriteWithPlaced(" WHERE {{.PrimaryKeyField.Column}} = ?", primaryKey)
+	// qb.Write(" LIMIT 1") ???
+	qb.Write(" ").Write(queryReturning{{.Name}})
+	query, args := qb.Build()
+
+	var e {{.Name}}
+	err := r.tx(ctx, endo.TxMutation, func (db endo.DBTX) error {
+		return scan{{.Name}}(&e, db.QueryRowContext(ctx, query, args...))
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	{{if .InvokeOnUpdate}}{{.InvokeOnUpdate}}(ctx, &e){{end}}
+	return &e, nil
+}
+{{end}}
+
+// Update{{.Name}}ByField updates all {{.Plural}} with field `byField` equal to `v`.
+func (r *Repository) Update{{.Name}}ByField(ctx context.Context, byField string, v interface{}, p {{.PatchName}}) (*{{.Name}}, error) {
 	var qb endo.Builder
 	{{- if .UpdatedAtField }}
 	qb.WriteWithArgs("UPDATE {{.Table}} SET {{.UpdatedAtField.Column}} = $1", time.Now())
@@ -146,8 +199,21 @@ func (r *Repository) Update{{.Name}}(ctx context.Context, byField string, v inte
 {{end}}
 
 {{if not .NoDelete}}
-// Delete{{.Name}} deletes all {{.Plural}} with field `byField` equal to `v`.
-func (r *Repository) Delete{{.Name}}(ctx context.Context, byField string, v interface{}) error {
+
+{{if .PrimaryKeyField}}
+// Delete{{.Name}} deletes the {{.Name}} using the primary key.
+func (r *Repository) Delete{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Column}}) error {
+	const query = "DELETE FROM {{.Table}} WHERE {{.PrimaryKeyField.Column}} = $1"
+
+	return r.tx(ctx, endo.TxMutation, func(db endo.DBTX) error {
+		_, err := db.ExecContext(ctx, query, primaryKey)
+		return err
+	})
+}
+{{end}}
+
+// Delete{{.Name}}ByField deletes all {{.Plural}} with field `byField` equal to `v`.
+func (r *Repository) Delete{{.Name}}ByField(ctx context.Context, byField string, v interface{}) error {
 	var qb endo.Builder
 	query := qb.
 		Write("DELETE FROM {{.Table}}").
