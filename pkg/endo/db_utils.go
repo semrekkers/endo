@@ -3,6 +3,7 @@ package endo
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -61,3 +62,7 @@ func UseDB(db *sql.DB) TxFunc {
 		return nil
 	}
 }
+
+var (
+	ErrNoChange = errors.New("no change in update")
+)

@@ -111,9 +111,11 @@ func (r *Repository) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 {{if not .NoCreate}}
 // Create{{.Name}} creates and saves a new {{.Name}}.
 func (r *Repository) Create{{.Name}}(ctx context.Context, e {{.Type}}) (*{{.Type}}, error) {
+	{{if or .CreatedAtField .UpdatedAtField}}
 	now := time.Now()
 	{{if .CreatedAtField}}e.{{.CreatedAtField.Name}} = now{{end}}
 	{{if .UpdatedAtField}}e.{{.UpdatedAtField.Name}} = now{{end}}
+	{{end}}
 
 	err := r.tx(ctx, endo.TxMutation, func(db endo.DBTX) error {
 		return db.QueryRowContext(ctx, queryInsert{{.Name}},
@@ -138,22 +140,32 @@ func (r *Repository) Create{{.Name}}(ctx context.Context, e {{.Type}}) (*{{.Type
 {{if .PrimaryKeyField}}
 // Update{{.Name}} updates the {{.Name}} using the primary key.
 func (r *Repository) Update{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Type}}, p {{.PatchType}}) (*{{.Type}}, error) {
-	var qb endo.Builder
-	{{- if .UpdatedAtField }}
-	qb.WriteWithArgs("UPDATE {{.Table}} SET {{.UpdatedAtField.Column}} = $1", time.Now())
-	{{- else -}}
-	qb.Write("UPDATE {{.Table}} SET {{.PrimaryKeyField.Column}} = {{.PrimaryKeyField.Column}}")
-	{{- end }}
-
+	var fieldUpdates []endo.NameValue
 	{{range .PatchFields}}
 	if p.{{.Name}} != nil {
-		qb.WriteWithPlaced(", {{.Column}} = ?", *p.{{.Name}})
+		fieldUpdates = append(fieldUpdates, endo.NameValue{
+			Name: "{{.Column}}",
+			Value: *p.{{.Name}},
+		})
 	}
 	{{- end}}
-	qb.WriteWithPlaced(" WHERE {{.PrimaryKeyField.Column}} = ?", primaryKey)
-	// qb.Write(" LIMIT 1") ???
-	qb.Write(" ").Write(queryReturning{{.Name}})
-	query, args := qb.Build()
+	if len(fieldUpdates) == 0 {
+		return nil, endo.ErrNoChange
+	}
+	{{- if .UpdatedAtField }}
+	fieldUpdates = append(fieldUpdates, endo.NameValue{
+		Name: "{{.UpdatedAtField.Column}}",
+		Value: time.Now(),
+	})
+	{{- end }}
+
+	var qb endo.Builder
+	query, args := qb.
+		Write("UPDATE {{.Table}} SET ").
+		WriteNameValues("%s = ?", ", ", fieldUpdates...).
+		WriteWithPlaced(" WHERE {{.PrimaryKeyField.Column}} = ?", primaryKey).
+		Write(" ").Write(queryReturning{{.Name}}).
+		Build()
 
 	var e {{.Type}}
 	err := r.tx(ctx, endo.TxMutation, func (db endo.DBTX) error {
@@ -170,22 +182,32 @@ func (r *Repository) Update{{.Name}}(ctx context.Context, primaryKey {{.PrimaryK
 
 // Update{{.Name}}ByField updates all {{.Plural}} with field `byField` equal to `v`.
 func (r *Repository) Update{{.Name}}ByField(ctx context.Context, byField string, v interface{}, p {{.PatchType}}) (*{{.Type}}, error) {
-	var qb endo.Builder
-	{{- if .UpdatedAtField }}
-	qb.WriteWithArgs("UPDATE {{.Table}} SET {{.UpdatedAtField.Column}} = $1", time.Now())
-	{{- else -}}
-	qb.Write("UPDATE {{.Table}} SET {{.PrimaryKeyField.Column}} = {{.PrimaryKeyField.Column}}")
-	{{- end }}
-
+	var fieldUpdates []endo.NameValue
 	{{range .PatchFields}}
 	if p.{{.Name}} != nil {
-		qb.WriteWithPlaced(", {{.Column}} = ?", *p.{{.Name}})
+		fieldUpdates = append(fieldUpdates, endo.NameValue{
+			Name: "{{.Column}}",
+			Value: *p.{{.Name}},
+		})
 	}
 	{{- end}}
-	qb.Writef(" WHERE %s", pq.QuoteIdentifier(byField)).WriteWithPlaced(" = ?", v)
-	// qb.Write(" LIMIT 1") ???
-	qb.Write(" ").Write(queryReturning{{.Name}})
-	query, args := qb.Build()
+	if len(fieldUpdates) == 0 {
+		return nil, endo.ErrNoChange
+	}
+	{{- if .UpdatedAtField }}
+	fieldUpdates = append(fieldUpdates, endo.NameValue{
+		Name: "{{.UpdatedAtField.Column}}",
+		Value: time.Now(),
+	})
+	{{- end }}
+
+	var qb endo.Builder
+	query, args := qb.
+		Write("UPDATE {{.Table}} SET ").
+		WriteNameValues("%s = ?", ", ", fieldUpdates...).
+		Writef(" WHERE %s", pq.QuoteIdentifier(byField)).WriteWithPlaced(" = ?", v).
+		Write(" ").Write(queryReturning{{.Name}}).
+		Build()
 
 	var e {{.Type}}
 	err := r.tx(ctx, endo.TxMutation, func (db endo.DBTX) error {

@@ -53,6 +53,27 @@ func (b *Builder) WriteWithPlaced(s string, p interface{}) *Builder {
 	return b
 }
 
+// NameValue represents a name value pair.
+type NameValue struct {
+	Name  string
+	Value interface{}
+}
+
+// WriteNameValues formats every NameValue according to a format specifier with an additional placed
+// parameter (see Builder.WriteWithPlaced) and appends to the Builder's buffer.
+// Returns the receiver Builder.
+func (b *Builder) WriteNameValues(format string, sep string, a ...NameValue) *Builder {
+	if len(a) > 0 {
+		elem := a[0]
+		b.WriteWithPlaced(fmt.Sprintf(format, elem.Name), elem.Value)
+		for _, elem = range a[1:] {
+			b.s.WriteString(sep)
+			b.WriteWithPlaced(fmt.Sprintf(format, elem.Name), elem.Value)
+		}
+	}
+	return b
+}
+
 // WithArgs appends a to the Builder's buffer. Returns the receiver Builder.
 func (b *Builder) WithArgs(a ...interface{}) *Builder {
 	b.args = append(b.args, a...)

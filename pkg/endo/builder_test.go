@@ -146,6 +146,24 @@ func TestDynamicUpdate3(t *testing.T) {
 	assert.Equal(t, []interface{}{time.Date(2021, time.December, 22, 20, 58, 0, 0, time.UTC), "127.0.0.1", 3}, args)
 }
 
+func TestUpdateWithNameValues(t *testing.T) {
+	var b endo.Builder
+	patch := []endo.NameValue{
+		{"email", "test@example.com"},
+		{"ip", "127.0.0.1"},
+		{"log_id", 38154},
+	}
+
+	query, args := b.
+		Write("UPDATE users SET ").
+		WriteNameValues("%s = ?", ", ", patch...).
+		WriteWithPlaced(" WHERE id = ?", 3).
+		Build()
+
+	assert.Equal(t, "UPDATE users SET email = $1, ip = $2, log_id = $3 WHERE id = $4", query)
+	assert.Equal(t, []interface{}{"test@example.com", "127.0.0.1", 38154, 3}, args)
+}
+
 func TestCopy(t *testing.T) {
 	var b endo.Builder
 	b.WriteWithArgs("SELECT $1 AS marked, * FROM users", true)
