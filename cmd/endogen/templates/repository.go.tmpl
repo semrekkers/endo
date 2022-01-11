@@ -33,7 +33,7 @@ const (
 {{if .PrimaryKeyField}}
 // Get{{.Name}} retrieves a single {{.Name}} from the database using the primary key.
 func (r *Repository) Get{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Type}}) (*{{.Name}}, error) {
-	const query = querySelect + " WHERE {{.PrimaryKeyField.Column}} = $1"
+	const query = querySelect{{.Name}} + " WHERE {{.PrimaryKeyField.Column}} = $1"
 
 	var e {{.Name}}
 	err := r.tx(ctx, endo.TxReadOnly, func(db endo.DBTX) error {
@@ -202,7 +202,7 @@ func (r *Repository) Update{{.Name}}ByField(ctx context.Context, byField string,
 
 {{if .PrimaryKeyField}}
 // Delete{{.Name}} deletes the {{.Name}} using the primary key.
-func (r *Repository) Delete{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Column}}) error {
+func (r *Repository) Delete{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Type}}) error {
 	const query = "DELETE FROM {{.Table}} WHERE {{.PrimaryKeyField.Column}} = $1"
 
 	return r.tx(ctx, endo.TxMutation, func(db endo.DBTX) error {
