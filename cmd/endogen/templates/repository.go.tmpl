@@ -8,6 +8,8 @@ import (
 
 	"github.com/lib/pq"
 	"github.com/semrekkers/endo/pkg/endo"
+
+{{range .ImportRepo}}	"{{.}}"{{end}}
 )
 
 // Repository handles actions with the underlying database.
@@ -32,10 +34,10 @@ const (
 
 {{if .PrimaryKeyField}}
 // Get{{.Name}} retrieves a single {{.Name}} from the database using the primary key.
-func (r *Repository) Get{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Type}}) (*{{.Name}}, error) {
+func (r *Repository) Get{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Type}}) (*{{.Type}}, error) {
 	const query = querySelect{{.Name}} + " WHERE {{.PrimaryKeyField.Column}} = $1"
 
-	var e {{.Name}}
+	var e {{.Type}}
 	err := r.tx(ctx, endo.TxReadOnly, func(db endo.DBTX) error {
 		row := db.QueryRowContext(ctx, query, primaryKey)
 		return scan{{.Name}}(&e, row)
@@ -50,8 +52,8 @@ func (r *Repository) Get{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyF
 {{end}}
 
 // Get{{.Name}}ByField retrieves a single {{.Name}} from the database with field `byField` equal to `v`.
-func (r *Repository) Get{{.Name}}ByField(ctx context.Context, byField string, v interface{}) (*{{.Name}}, error) {
-	var e {{.Name}}
+func (r *Repository) Get{{.Name}}ByField(ctx context.Context, byField string, v interface{}) (*{{.Type}}, error) {
+	var e {{.Type}}
 	var qb endo.Builder
 	query := qb.
 		Write(querySelect{{.Name}}).
@@ -70,14 +72,14 @@ func (r *Repository) Get{{.Name}}ByField(ctx context.Context, byField string, v 
 }
 
 // Get{{.Plural}} retrieves paginated {{.Plural}} from the database.
-func (r *Repository) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([]*{{.Name}}, error) {
+func (r *Repository) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([]*{{.Type}}, error) {
 	const query = querySelect{{.Name}} +
 	{{- if .OrderBy -}}
 		" ORDER BY {{ .OrderBy }}" +
 	{{- end -}}
 	" LIMIT $1 OFFSET $2"
 
-	var c []*{{.Name}}
+	var c []*{{.Type}}
 	limit, offset := po.Args()
 	err := r.tx(ctx, endo.TxReadOnly, func(db endo.DBTX) error {
 		rows, err := db.QueryContext(ctx, query, limit, offset)
@@ -86,7 +88,7 @@ func (r *Repository) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 		}
 		defer rows.Close()
 		for rows.Next() {
-			var e {{.Name}}
+			var e {{.Type}}
 			if err = scan{{.Name}}(&e, rows); err != nil {
 				return err
 			}
@@ -108,7 +110,7 @@ func (r *Repository) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 
 {{if not .NoCreate}}
 // Create{{.Name}} creates and saves a new {{.Name}}.
-func (r *Repository) Create{{.Name}}(ctx context.Context, e {{.Name}}) (*{{.Name}}, error) {
+func (r *Repository) Create{{.Name}}(ctx context.Context, e {{.Type}}) (*{{.Type}}, error) {
 	now := time.Now()
 	{{if .CreatedAtField}}e.{{.CreatedAtField.Name}} = now{{end}}
 	{{if .UpdatedAtField}}e.{{.UpdatedAtField.Name}} = now{{end}}
@@ -135,7 +137,7 @@ func (r *Repository) Create{{.Name}}(ctx context.Context, e {{.Name}}) (*{{.Name
 
 {{if .PrimaryKeyField}}
 // Update{{.Name}} updates the {{.Name}} using the primary key.
-func (r *Repository) Update{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Type}}, p {{.PatchName}}) (*{{.Name}}, error) {
+func (r *Repository) Update{{.Name}}(ctx context.Context, primaryKey {{.PrimaryKeyField.Type}}, p {{.PatchType}}) (*{{.Type}}, error) {
 	var qb endo.Builder
 	{{- if .UpdatedAtField }}
 	qb.WriteWithArgs("UPDATE {{.Table}} SET {{.UpdatedAtField.Column}} = $1", time.Now())
@@ -153,7 +155,7 @@ func (r *Repository) Update{{.Name}}(ctx context.Context, primaryKey {{.PrimaryK
 	qb.Write(" ").Write(queryReturning{{.Name}})
 	query, args := qb.Build()
 
-	var e {{.Name}}
+	var e {{.Type}}
 	err := r.tx(ctx, endo.TxMutation, func (db endo.DBTX) error {
 		return scan{{.Name}}(&e, db.QueryRowContext(ctx, query, args...))
 	})
@@ -167,7 +169,7 @@ func (r *Repository) Update{{.Name}}(ctx context.Context, primaryKey {{.PrimaryK
 {{end}}
 
 // Update{{.Name}}ByField updates all {{.Plural}} with field `byField` equal to `v`.
-func (r *Repository) Update{{.Name}}ByField(ctx context.Context, byField string, v interface{}, p {{.PatchName}}) (*{{.Name}}, error) {
+func (r *Repository) Update{{.Name}}ByField(ctx context.Context, byField string, v interface{}, p {{.PatchType}}) (*{{.Type}}, error) {
 	var qb endo.Builder
 	{{- if .UpdatedAtField }}
 	qb.WriteWithArgs("UPDATE {{.Table}} SET {{.UpdatedAtField.Column}} = $1", time.Now())
@@ -185,7 +187,7 @@ func (r *Repository) Update{{.Name}}ByField(ctx context.Context, byField string,
 	qb.Write(" ").Write(queryReturning{{.Name}})
 	query, args := qb.Build()
 
-	var e {{.Name}}
+	var e {{.Type}}
 	err := r.tx(ctx, endo.TxMutation, func (db endo.DBTX) error {
 		return scan{{.Name}}(&e, db.QueryRowContext(ctx, query, args...))
 	})
@@ -226,7 +228,7 @@ func (r *Repository) Delete{{.Name}}ByField(ctx context.Context, byField string,
 }
 {{end}}
 
-func scan{{.Name}}(e *{{.Name}}, s endo.Scanner) error {
+func scan{{.Name}}(e *{{.Type}}, s endo.Scanner) error {
 	return s.Scan(
 		{{- range .Fields }}
 		&e.{{.Name}},

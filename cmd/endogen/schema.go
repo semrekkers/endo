@@ -6,17 +6,19 @@ import (
 )
 
 type Schema struct {
-	Package string        `yaml:"package"`
-	Import  []string      `yaml:"import,omitempty"`
-	Schema  []*Definition `yaml:"schema"`
+	Package    string        `yaml:"package"`
+	Import     []string      `yaml:"import,omitempty"`
+	ImportRepo []string      `yaml:"import_repo,omitempty"`
+	Schema     []*Definition `yaml:"schema"`
 }
 
 type Definition struct {
 	Name           string   `yaml:"name"`
+	Type           string   `yaml:"type"`
 	Description    string   `yaml:"description,omitempty"`
 	Plural         *string  `yaml:"plural,omitempty"`
 	Table          *string  `yaml:"table,omitempty"`
-	PatchName      *string  `yaml:"patch_name,omitempty"`
+	PatchType      *string  `yaml:"patch_type,omitempty"`
 	PrimaryKey     *string  `yaml:"primary_key,omitempty"`
 	OrderBy        *string  `yaml:"order_by,omitempty"`
 	WithCreatedAt  *string  `yaml:"with_created_at,omitempty"`
@@ -114,6 +116,9 @@ func setDefaultsDefinition(d *Definition) error {
 		fields[field.Column] = field
 	}
 
+	if d.Type == "" {
+		d.Type = d.Name
+	}
 	if d.Plural == nil {
 		plural := d.Name + "s"
 		d.Plural = &plural
@@ -122,9 +127,9 @@ func setDefaultsDefinition(d *Definition) error {
 		table := strings.ToLower(*d.Plural)
 		d.Table = &table
 	}
-	if d.PatchName == nil {
-		patchName := d.Name + "Patch"
-		d.PatchName = &patchName
+	if d.PatchType == nil {
+		patchType := d.Name + "Patch"
+		d.PatchType = &patchType
 	}
 	if _, ok := fields["id"]; d.PrimaryKey == nil && ok {
 		n := "id"
@@ -143,28 +148,28 @@ func setDefaultsDefinition(d *Definition) error {
 		d.WithUpdatedAt = &n
 	}
 
-	if d.PrimaryKey != nil {
+	if d.PrimaryKey != nil && *d.PrimaryKey != "" {
 		field, ok := fields[*d.PrimaryKey]
 		if !ok {
 			return fmt.Errorf("schema: at primary_key in definition %s: field %s doesn't exist", d.Name, *d.PrimaryKey)
 		}
 		d.PrimaryKeyField = field
 	}
-	if d.OrderBy != nil {
+	if d.OrderBy != nil && *d.OrderBy != "" {
 		field, ok := fields[*d.OrderBy]
 		if !ok {
 			return fmt.Errorf("schema: at order_by in definition %s: field %s doesn't exist", d.Name, *d.OrderBy)
 		}
 		d.OrderByField = field
 	}
-	if d.WithCreatedAt != nil {
+	if d.WithCreatedAt != nil && *d.WithCreatedAt != "" {
 		field, ok := fields[*d.WithCreatedAt]
 		if !ok {
 			return fmt.Errorf("schema: at with_created_at in definition %s: field %s doesn't exist", d.Name, *d.WithCreatedAt)
 		}
 		d.CreatedAtField = field
 	}
-	if d.WithUpdatedAt != nil {
+	if d.WithUpdatedAt != nil && *d.WithUpdatedAt != "" {
 		field, ok := fields[*d.WithUpdatedAt]
 		if !ok {
 			return fmt.Errorf("schema: at with_updated_at in definition %s: field %s doesn't exist", d.Name, *d.WithUpdatedAt)

@@ -14,8 +14,8 @@ type {{.Name}} struct {
 {{- end}}
 }
 
-// {{.PatchName}} is used for patching {{.Name}}.
-type {{.PatchName}} struct {
+// {{.PatchType}} is used for patching {{.Name}}.
+type {{.PatchType}} struct {
 {{- range .PatchFields}}
 	{{.Name}}	*{{.Type}}	`json:"{{.JSONTag}}"`
 {{- end}}
