@@ -17,10 +17,9 @@ var templateFS embed.FS
 
 func main() {
 	var (
-		argSchema  = flag.String("schema", "stdin", "Schema `file` to use")
-		argModels  = flag.Bool("models", false, "Generate models instead of repository")
-		argOutput  = flag.String("output", "stdout", "Output `file`")
-		argSkipFmt = flag.Bool("skip-fmt", false, "Skip Go formatting")
+		argSchema = flag.String("schema", "stdin", "Schema `file` to use")
+		argModels = flag.Bool("models", false, "Generate models instead of repository")
+		argOutput = flag.String("output", "stdout", "Output `file`")
 	)
 	flag.Parse()
 
@@ -43,21 +42,17 @@ func main() {
 	_, err = templates.ParseFS(templateFS, "templates/*")
 	exitOnErr(err)
 
-	templateName := "repository.go.tmpl"
-	if *argModels {
-		templateName = "models.go.tmpl"
-	}
 	var (
 		buf    bytes.Buffer
 		output []byte
 	)
-	exitOnErr(templates.ExecuteTemplate(&buf, templateName, &schema))
-	if !*argSkipFmt {
-		output, err = format.Source(buf.Bytes())
-		exitOnErr(err)
-	} else {
-		output = buf.Bytes()
+	templateName := "repository.go.tmpl"
+	if *argModels {
+		templateName = "models.go.tmpl"
 	}
+	exitOnErr(templates.ExecuteTemplate(&buf, templateName, &schema))
+	output, err = format.Source(buf.Bytes())
+	exitOnErr(err)
 
 	outputFile, outputClose, err := openFile(*argOutput, true)
 	exitOnErr(err)
