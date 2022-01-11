@@ -6,6 +6,7 @@ import (
 	"fmt"
 )
 
+// DBTX represents a database connection or transaction.
 type DBTX interface {
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
@@ -13,6 +14,7 @@ type DBTX interface {
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 }
 
+// Scanner scans a sql.Row or sql.Rows.
 type Scanner interface {
 	Scan(dest ...interface{}) error
 }

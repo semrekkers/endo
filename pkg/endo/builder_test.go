@@ -18,6 +18,14 @@ func TestWrite(t *testing.T) {
 	assert.Equal(t, "SELECT * FROM users", query)
 }
 
+func TestWritef(t *testing.T) {
+	var b endo.Builder
+
+	query := b.Writef("SELECT * FROM %s", "users").String()
+
+	assert.Equal(t, "SELECT * FROM users", query)
+}
+
 func TestWriteTrim(t *testing.T) {
 	var b endo.Builder
 
