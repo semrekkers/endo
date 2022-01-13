@@ -32,7 +32,6 @@ type Definition struct {
 	Fields         []*Field `yaml:"fields"`
 
 	PrimaryKeyField *Field `yaml:"-"`
-	OrderByField    *Field `yaml:"-"`
 	CreatedAtField  *Field `yaml:"-"`
 	UpdatedAtField  *Field `yaml:"-"`
 }
@@ -109,8 +108,10 @@ func setDefaultsDefinition(d *Definition) error {
 			field.JSONTag = &field.Column
 		}
 		if field.Nullable {
-			tag := *field.JSONTag + ",omitempty"
-			field.JSONTag = &tag
+			if *field.JSONTag != "-" {
+				tag := *field.JSONTag + ",omitempty"
+				field.JSONTag = &tag
+			}
 		}
 
 		fields[field.Column] = field
@@ -154,13 +155,6 @@ func setDefaultsDefinition(d *Definition) error {
 			return fmt.Errorf("schema: at primary_key in definition %s: field %s doesn't exist", d.Name, *d.PrimaryKey)
 		}
 		d.PrimaryKeyField = field
-	}
-	if d.OrderBy != nil && *d.OrderBy != "" {
-		field, ok := fields[*d.OrderBy]
-		if !ok {
-			return fmt.Errorf("schema: at order_by in definition %s: field %s doesn't exist", d.Name, *d.OrderBy)
-		}
-		d.OrderByField = field
 	}
 	if d.WithCreatedAt != nil && *d.WithCreatedAt != "" {
 		field, ok := fields[*d.WithCreatedAt]
