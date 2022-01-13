@@ -13,6 +13,7 @@ import (
 {{range .ImportRepo}}	"{{.}}"{{end}}
 )
 
+{{if not .NoRepoDecl}}
 // Repository handles actions with the underlying database.
 type Repository struct {
 	tx endo.TxFunc
@@ -24,6 +25,7 @@ func NewRepository(txFunc endo.TxFunc) *Repository {
 		tx: txFunc,
 	}
 }
+{{end}}
 
 {{range .Schema}}
 

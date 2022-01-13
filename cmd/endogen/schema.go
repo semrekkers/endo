@@ -9,6 +9,7 @@ type Schema struct {
 	Package    string        `yaml:"package"`
 	Import     []string      `yaml:"import,omitempty"`
 	ImportRepo []string      `yaml:"import_repo,omitempty"`
+	NoRepoDecl bool          `yaml:"no_repo_decl"`
 	Schema     []*Definition `yaml:"schema"`
 }
 
