@@ -4,6 +4,7 @@ package {{.Package}}
 
 import (
 	"context"
+	"database/sql"
 	"time"
 
 	"github.com/lib/pq"
@@ -87,14 +88,8 @@ func (r *Repository) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 			return err
 		}
 		defer rows.Close()
-		for rows.Next() {
-			var e {{.Type}}
-			if err = scan{{.Name}}(&e, rows); err != nil {
-				return err
-			}
-			c = append(c, &e)
-		}
-		return nil
+		c, err = scan{{.Name}}Rows(rows)
+		return err
 	})
 	if err != nil {
 		return nil, err
@@ -256,6 +251,18 @@ func scan{{.Name}}(e *{{.Type}}, s endo.Scanner) error {
 		&e.{{.Name}},
 		{{- end }}
 	)
+}
+
+func scan{{.Name}}Rows(rows *sql.Rows) ([]*{{.Type}}, error) {
+	var c []*{{.Type}}
+	for rows.Next() {
+		var e {{.Type}}
+		if err := scan{{.Name}}(&e, rows); err != nil {
+			return nil, err
+		}
+		c = append(c, &e)
+	}
+	return c, nil
 }
 
 {{end}}
