@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/lib/pq"
 	"github.com/semrekkers/endo/pkg/endo"
 
 {{range .ExtraImports}}	{{.}}
@@ -54,11 +53,12 @@ func (s *{{$store}}) Get{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}})
 {{end}}
 
 // Get{{.Name}}ByField finds the {{.Name}} where field equals v.
+// Please be aware that field is not protected against SQL injection attacks.
 func (s *{{$store}}) Get{{.Name}}ByField(ctx context.Context, field string, v interface{}) (*{{.Type}}, error) {
 	var qb endo.Builder
 	query := qb.
 		Write(querySelect{{.Name}}).
-		Writef(" WHERE %s = $1", pq.QuoteIdentifier(field)).
+		Writef(" WHERE %s = $1", field).
 		String()
 
 	var e {{.Type}}
@@ -145,11 +145,12 @@ func (s *{{$store}}) Update{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type
 {{end}}
 
 // Update{{.Name}}ByField updates the {{.Name}} to the given e where field equals v.
+// Please be aware that field is not protected against SQL injection attacks.
 func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v interface{}, e {{.Type}}) (*{{.Type}}, error) {
 	var qb endo.Builder
 	query := qb.
 		Write(`{{template "queryUpdate" .}} `).
-		Writef("WHERE %s = ${{ lastArg (.FieldsNoPrimaryKey | toColumns) }} ", pq.QuoteIdentifier(field)).
+		Writef("WHERE %s = ${{ lastArg (.FieldsNoPrimaryKey | toColumns) }} ", field).
 		Write(queryReturning{{.Name}}).
 		String()
 
@@ -213,6 +214,7 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 {{end}}
 
 // Patch{{.Name}}ByField updates the {{.Name}} using the given patch p where field equals v.
+// Please be aware that field is not protected against SQL injection attacks.
 func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v interface{}, p {{.PatchType}}) (*{{.Type}}, error) {
 	var fieldUpdates []endo.NameValue
 	{{range .FieldsNoPrimaryKey}}
@@ -231,7 +233,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 	query, args := qb.
 		Write("UPDATE {{.Table}} SET ").
 		WriteNameValues("%s = ?", ", ", fieldUpdates...).
-		Writef(" WHERE %s", pq.QuoteIdentifier(field)).WriteWithPlaced(" = ? ", v).
+		Writef(" WHERE %s", field).WriteWithPlaced(" = ? ", v).
 		Write(queryReturning{{.Name}}).
 		Build()
 
@@ -259,11 +261,12 @@ func (s *{{$store}}) Delete{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type
 {{end}}
 
 // Delete{{.Name}}ByField deletes the {{.Name}} where field equals v.
+// Please be aware that field is not protected against SQL injection attacks.
 func (s *{{$store}}) Delete{{.Name}}ByField(ctx context.Context, field string, v interface{}) error {
 	var qb endo.Builder
 	query := qb.
 		Write("DELETE FROM {{.Table}}").
-		Writef(" WHERE %s = $1", pq.QuoteIdentifier(field)).
+		Writef(" WHERE %s = $1", field).
 		String()
 	return s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		_, err := dbtx.ExecContext(ctx, query, v)
