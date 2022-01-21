@@ -30,14 +30,14 @@ func New{{.Store}}(tx endo.TxFunc) *{{.Store}} {
 {{range .Models}}
 
 const (
-	querySelect{{.Name}} = `{{template "querySelect" .}}`
-	queryReturning{{.Name}} = `{{template "queryReturning" .}}`
+	querySelect{{.Name}} = `{{template "querySelect" .}} `
+	queryReturning{{.Name}} = ` {{template "queryReturning" .}}`
 )
 
 {{if .PrimaryKey}}
 // Get{{.Name}} finds the {{.Name}} identified by the given key.
 func (s *{{$store}}) Get{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}) (*{{.Type}}, error) {
-	const query = querySelect{{.Name}} + " WHERE {{.PrimaryKey.Column}} = $1"
+	const query = querySelect{{.Name}} + "WHERE {{.PrimaryKey.Column}} = $1"
 
 	var e {{.Type}}
 	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
@@ -58,7 +58,7 @@ func (s *{{$store}}) Get{{.Name}}ByField(ctx context.Context, field string, v in
 	var qb endo.Builder
 	query := qb.
 		Write(querySelect{{.Name}}).
-		Writef(" WHERE %s = $1", field).
+		Writef("WHERE %s = $1", field).
 		String()
 
 	var e {{.Type}}
@@ -77,9 +77,9 @@ func (s *{{$store}}) Get{{.Name}}ByField(ctx context.Context, field string, v in
 func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([]*{{.Type}}, error) {
 	const query = querySelect{{.Name}} +
 	{{- if .OrderBy -}}
-		" ORDER BY {{ .OrderBy }}" +
+		"ORDER BY {{ .OrderBy }} " +
 	{{- end -}}
-	" LIMIT $1 OFFSET $2"
+	"LIMIT $1 OFFSET $2"
 	limit, offset := po.Args()
 
 	var c []*{{.Type}}
