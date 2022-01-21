@@ -33,8 +33,8 @@ const (
 // A TxFunc opens a new abstact database context and executes fn with it.
 type TxFunc func(ctx context.Context, flags uint, fn func(DBTX) error) error
 
-// UseDB wraps db inside a minimum transaction function handler. The returned TxFunc covers
-// only the basic functionalities.
+// UseDB wraps db inside a transaction function handler. The returned TxFunc covers the
+// basic functionalities.
 func UseDB(db *sql.DB) TxFunc {
 	return func(ctx context.Context, flags uint, fn func(DBTX) error) error {
 		var (
