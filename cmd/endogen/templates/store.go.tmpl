@@ -197,7 +197,7 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 	query, args := qb.
 		Write("UPDATE {{.Table}} SET ").
 		WriteNameValues("%s = ?", ", ", fieldUpdates...).
-		WriteWithPlaced(" {{.PrimaryKey.Column}} = ? ", key).
+		WriteWithPlaced(" WHERE {{.PrimaryKey.Column}} = ? ", key).
 		Write(queryReturning{{.Name}}).
 		Build()
 
