@@ -108,7 +108,7 @@ func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{.Type}}) (*{{.Type
 	
 	err := s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
-			{{- range .FieldsNoPrimaryKey }}
+			{{- range .Fields true | filterPrimary }}
 			e.{{.Name}},
 			{{- end }}
 		)
@@ -124,12 +124,12 @@ func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{.Type}}) (*{{.Type
 {{if .PrimaryKey}}
 // Update{{.Name}} updates the {{.Name}} identified by the given key.
 func (s *{{$store}}) Update{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, e {{.Type}}) (*{{.Type}}, error) {
-	const query = `{{template "queryUpdate" .}} WHERE {{.PrimaryKey.Column}} = ${{ lastArg (.FieldsNoPrimaryKey | toColumns) }} ` +
+	const query = `{{template "queryUpdate" .}} WHERE {{.PrimaryKey.Column}} = ${{ lastArg (.Fields true | filterPrimary | toColumns) }} ` +
 		queryReturning{{.Name}}
 
 	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
-			{{- range .FieldsNoPrimaryKey }}
+			{{- range .Fields true | filterPrimary }}
 			e.{{.Name}},
 			{{- end }}
 			key,
@@ -150,13 +150,13 @@ func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v
 	var qb endo.Builder
 	query := qb.
 		Write(`{{template "queryUpdate" .}} `).
-		Writef("WHERE %s = ${{ lastArg (.FieldsNoPrimaryKey | toColumns) }} ", field).
+		Writef("WHERE %s = ${{ lastArg (.Fields true | filterPrimary | toColumns) }} ", field).
 		Write(queryReturning{{.Name}}).
 		String()
 
 	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
-			{{- range .FieldsNoPrimaryKey }}
+			{{- range .Fields true | filterPrimary }}
 			e.{{.Name}},
 			{{- end }}
 			v,
@@ -172,7 +172,7 @@ func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v
 
 // {{.PatchType}} can (partially) patch a {{.Type}}.
 type {{.PatchType}} struct {
-{{- range .FieldsNoPrimaryKey}}
+{{- range .Fields true | filterPrimary}}
 	{{.Name}}	*{{.Type}}
 {{- end}}
 }
@@ -181,7 +181,7 @@ type {{.PatchType}} struct {
 // Patch{{.Name}} updates the {{.Name}} identified by the given key, using the patch p.
 func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, p {{.PatchType}}) (*{{.Type}}, error) {
 	var fieldUpdates []endo.NameValue
-	{{range .FieldsNoPrimaryKey}}
+	{{range .Fields true | filterPrimary}}
 	if p.{{.Name}} != nil {
 		fieldUpdates = append(fieldUpdates, endo.NameValue{
 			Name:  "{{.Column}}",
@@ -217,7 +217,7 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 // Please be aware that field is not protected against SQL injection attacks.
 func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v interface{}, p {{.PatchType}}) (*{{.Type}}, error) {
 	var fieldUpdates []endo.NameValue
-	{{range .FieldsNoPrimaryKey}}
+	{{range .Fields true | filterPrimary}}
 	if p.{{.Name}} != nil {
 		fieldUpdates = append(fieldUpdates, endo.NameValue{
 			Name:  "{{.Column}}",
@@ -278,7 +278,7 @@ func (s *{{$store}}) Delete{{.Name}}ByField(ctx context.Context, field string, v
 
 func scan{{.Name}}(e *{{.Type}}, s endo.Scanner) error {
 	return s.Scan(
-		{{- range .Fields }}
+		{{- range .Fields false }}
 		&e.{{.Name}},
 		{{- end }}
 	)

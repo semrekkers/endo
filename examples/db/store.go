@@ -24,13 +24,13 @@ func NewStore(tx endo.TxFunc) *Store {
 }
 
 const (
-	querySelectUser    = `SELECT id, email, first_name, last_name, email_verified, password_hash, created_at, updated_at FROM users`
-	queryReturningUser = `RETURNING id, email, first_name, last_name, email_verified, password_hash, created_at, updated_at`
+	querySelectUser    = `SELECT id, email, first_name, last_name, display_name, email_verified, password_hash, created_at, updated_at FROM users `
+	queryReturningUser = ` RETURNING id, email, first_name, last_name, display_name, email_verified, password_hash, created_at, updated_at`
 )
 
 // GetUser finds the User identified by the given key.
 func (s *Store) GetUser(ctx context.Context, key int) (*User, error) {
-	const query = querySelectUser + " WHERE id = $1"
+	const query = querySelectUser + "WHERE id = $1"
 
 	var e User
 	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
@@ -50,7 +50,7 @@ func (s *Store) GetUserByField(ctx context.Context, field string, v interface{})
 	var qb endo.Builder
 	query := qb.
 		Write(querySelectUser).
-		Writef(" WHERE %s = $1", field).
+		Writef("WHERE %s = $1", field).
 		String()
 
 	var e User
@@ -67,7 +67,7 @@ func (s *Store) GetUserByField(ctx context.Context, field string, v interface{})
 
 // GetUsers gets all Users from the database.
 func (s *Store) GetUsers(ctx context.Context, po endo.PageOptions) ([]*User, error) {
-	const query = querySelectUser + " ORDER BY id" + " LIMIT $1 OFFSET $2"
+	const query = querySelectUser + "ORDER BY id " + "LIMIT $1 OFFSET $2"
 	limit, offset := po.Args()
 
 	var c []*User
@@ -231,7 +231,7 @@ func (s *Store) PatchUser(ctx context.Context, key int, p UserPatch) (*User, err
 	query, args := qb.
 		Write("UPDATE users SET ").
 		WriteNameValues("%s = ?", ", ", fieldUpdates...).
-		WriteWithPlaced(" id = ? ", key).
+		WriteWithPlaced(" WHERE id = ? ", key).
 		Write(queryReturningUser).
 		Build()
 
@@ -346,6 +346,7 @@ func scanUser(e *User, s endo.Scanner) error {
 		&e.Email,
 		&e.FirstName,
 		&e.LastName,
+		&e.DisplayName,
 		&e.EmailVerified,
 		&e.PasswordHash,
 		&e.CreatedAt,
@@ -366,13 +367,13 @@ func scanUserRows(rows *sql.Rows) ([]*User, error) {
 }
 
 const (
-	querySelectRole    = `SELECT id, name FROM roles`
-	queryReturningRole = `RETURNING id, name`
+	querySelectRole    = `SELECT id, name FROM roles `
+	queryReturningRole = ` RETURNING id, name`
 )
 
 // GetRole finds the Role identified by the given key.
 func (s *Store) GetRole(ctx context.Context, key int) (*Role, error) {
-	const query = querySelectRole + " WHERE id = $1"
+	const query = querySelectRole + "WHERE id = $1"
 
 	var e Role
 	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
@@ -392,7 +393,7 @@ func (s *Store) GetRoleByField(ctx context.Context, field string, v interface{})
 	var qb endo.Builder
 	query := qb.
 		Write(querySelectRole).
-		Writef(" WHERE %s = $1", field).
+		Writef("WHERE %s = $1", field).
 		String()
 
 	var e Role
@@ -409,7 +410,7 @@ func (s *Store) GetRoleByField(ctx context.Context, field string, v interface{})
 
 // GetRoles gets all Roles from the database.
 func (s *Store) GetRoles(ctx context.Context, po endo.PageOptions) ([]*Role, error) {
-	const query = querySelectRole + " ORDER BY id" + " LIMIT $1 OFFSET $2"
+	const query = querySelectRole + "ORDER BY id " + "LIMIT $1 OFFSET $2"
 	limit, offset := po.Args()
 
 	var c []*Role
@@ -513,7 +514,7 @@ func (s *Store) PatchRole(ctx context.Context, key int, p RolePatch) (*Role, err
 	query, args := qb.
 		Write("UPDATE roles SET ").
 		WriteNameValues("%s = ?", ", ", fieldUpdates...).
-		WriteWithPlaced(" id = ? ", key).
+		WriteWithPlaced(" WHERE id = ? ", key).
 		Write(queryReturningRole).
 		Build()
 

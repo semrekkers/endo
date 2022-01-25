@@ -13,6 +13,7 @@ type User struct {
 	Email         string         `db:"email"`
 	FirstName     sql.NullString `db:"first_name"`
 	LastName      sql.NullString `db:"last_name"`
+	DisplayName   sql.NullString `db:"display_name,readonly"`
 	EmailVerified bool           `db:"email_verified"`
 	PasswordHash  sql.NullString `db:"password_hash"`
 	CreatedAt     time.Time      `db:"created_at"`

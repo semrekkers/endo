@@ -6,6 +6,19 @@ import (
 	"strings"
 )
 
+// filterPrimary filters all primary key fields.
+func filterPrimary(v []*field) []*field {
+	fields, n := make([]*field, len(v)), 0
+	for _, field := range v {
+		if !field.PrimaryKey {
+			fields[n] = field
+			n++
+		}
+	}
+	return fields[:n]
+}
+
+// toColumns returns a list of column names of fields.
 func toColumns(fields []*field) []string {
 	columns := make([]string, len(fields))
 	for i := range fields {
@@ -14,10 +27,12 @@ func toColumns(fields []*field) []string {
 	return columns
 }
 
+// joinStrings joins the given strings with a separator.
 func joinStrings(sep string, a []string) string {
 	return strings.Join(a, sep)
 }
 
+// mapToParams returns a list of placed parameters based on a.
 func mapToParams(a []string) []string {
 	v := make([]string, len(a))
 	for i := range a {
@@ -26,10 +41,12 @@ func mapToParams(a []string) []string {
 	return v
 }
 
+// lastArg returns the last argument count of a.
 func lastArg(a []string) int {
 	return len(a) + 1
 }
 
+// toFieldUpdates maps a to "<fieldName> = $<placedParameter>".
 func toFieldUpdates(a []string) []string {
 	v := make([]string, len(a))
 	for i, field := range a {

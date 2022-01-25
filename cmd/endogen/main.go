@@ -23,6 +23,7 @@ var (
 
 func init() {
 	templates.Funcs(template.FuncMap{
+		"filterPrimary":  filterPrimary,
 		"toColumns":      toColumns,
 		"joinStrings":    joinStrings,
 		"mapToParams":    mapToParams,
@@ -39,7 +40,7 @@ func main() {
 	var (
 		argInput     = flag.String("in", "$GOFILE", "Input Go `file` containing the model structs ('stdin' or empty reads from stdin)")
 		argViews     = flag.Bool("views", false, "Treat model structs as read-only views")
-		argStoreType = flag.String("store-type", "Store", "The Store `type` to use")
+		argStoreType = flag.String("store-type", "Store", "The `type name` to use for the store")
 		argGenStore  = flag.Bool("gen-store", true, "Generate the Store type and constructor")
 		argOutput    = flag.String("out", "stdout", "Output `file` to write the result to ('stdout' writes to stdout)")
 	)
@@ -81,6 +82,8 @@ func main() {
 	exitOnErr(err)
 }
 
+// ignoreImportPaths is a list of import paths that should be ignored because
+// they are already imported in the generated code.
 var ignoreImportPaths = []string{
 	`"context"`,
 	`"database/sql"`,

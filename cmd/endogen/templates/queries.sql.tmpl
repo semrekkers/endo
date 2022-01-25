@@ -1,16 +1,16 @@
 {{- define "querySelect" -}}
-SELECT {{.Fields | toColumns | joinStrings ", "}} FROM {{.Table}}
+SELECT {{.Fields false | toColumns | joinStrings ", "}} FROM {{.Table}}
 {{- end -}}
 
 {{- define "queryInsert" -}}
-{{- $columns := .FieldsNoPrimaryKey | toColumns -}}
+{{- $columns := .Fields true | filterPrimary | toColumns -}}
 INSERT INTO {{.Table}} ({{joinStrings ", " $columns}}) VALUES ({{mapToParams $columns | joinStrings ", "}})
 {{- end -}}
 
 {{- define "queryUpdate" -}}
-UPDATE {{.Table}} SET {{ .FieldsNoPrimaryKey | toColumns | toFieldUpdates | joinStrings ", " }}
+UPDATE {{.Table}} SET {{ .Fields true | filterPrimary | toColumns | toFieldUpdates | joinStrings ", " }}
 {{- end -}}
 
 {{- define "queryReturning" -}}
-RETURNING {{.Fields | toColumns | joinStrings ", "}}
+RETURNING {{.Fields false | toColumns | joinStrings ", "}}
 {{- end -}}
