@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"go/ast"
 	"go/printer"
 	"reflect"
@@ -146,6 +147,14 @@ func (m *model) addFields(f *ast.Field) error {
 		}
 	}
 
+	if f.Names == nil {
+		if err := m.addEmbeddedStructFields(f); err == nil {
+			return nil
+		} else if err != errNoEmbeddedStruct {
+			return err
+		}
+	}
+
 	for _, name := range f.Names {
 		spec := &field{
 			Name:       name.Name,
@@ -166,6 +175,30 @@ func (m *model) addFields(f *ast.Field) error {
 		m.fields = append(m.fields, spec)
 	}
 
+	return nil
+}
+
+var errNoEmbeddedStruct = errors.New("no embedded struct field")
+
+// addEmbeddedStructFields adds any fields from an embedded struct field (flatten).
+func (m *model) addEmbeddedStructFields(f *ast.Field) error {
+	ident, ok := f.Type.(*ast.Ident)
+	if !ok || ident.Obj == nil {
+		return errNoEmbeddedStruct
+	}
+	typeSpec, ok := ident.Obj.Decl.(*ast.TypeSpec)
+	if !ok {
+		return errNoEmbeddedStruct
+	}
+	structType, ok := typeSpec.Type.(*ast.StructType)
+	if !ok {
+		return errNoEmbeddedStruct
+	}
+	for _, field := range structType.Fields.List {
+		if err := m.addFields(field); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
