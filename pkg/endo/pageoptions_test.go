@@ -12,12 +12,12 @@ import (
 func TestPageOptions(t *testing.T) {
 	cases := []struct {
 		Page, PerPage int
-		Limit, Offset int32
+		Limit, Offset int
 	}{
 		{1, 100, 100, 0},
 		{3, 100, 100, 200},
-		{0, 0, 100, 0},
-		{3, 0, 100, 200},
+		{0, 0, 10, 0},
+		{3, 0, 10, 20},
 	}
 
 	for _, test := range cases {
