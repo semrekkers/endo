@@ -30,6 +30,11 @@ const (
 	TxReadOnly = 0
 )
 
+var (
+	// ErrNotFound is returned when no entity was found.
+	ErrNotFound = sql.ErrNoRows
+)
+
 // A TxFunc opens a new abstact database context and executes fn with it.
 type TxFunc func(ctx context.Context, flags uint, fn func(DBTX) error) error
 

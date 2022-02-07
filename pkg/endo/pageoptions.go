@@ -13,7 +13,7 @@ func (po *PageOptions) Args() (limit, offset int) {
 	}
 	limit = po.PerPage
 	if limit < 1 {
-		limit = 10
+		limit = 1
 	}
 	offset = (page - 1) * limit
 	return
