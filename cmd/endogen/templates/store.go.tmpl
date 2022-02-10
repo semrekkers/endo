@@ -199,8 +199,8 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE {{.Table}} SET ").
-		WriteNamedArgs("%s = ?", ", ", fieldUpdates...).
-		WriteWithPlaced(" WHERE {{.PrimaryKey.Column}} = ? ", key).
+		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		WriteWithParams(" WHERE {{.PrimaryKey.Column}} = {} ", key).
 		Write(queryReturning{{.Name}}).
 		Build()
 
@@ -235,8 +235,8 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE {{.Table}} SET ").
-		WriteNamedArgs("%s = ?", ", ", fieldUpdates...).
-		Writef(" WHERE %s", field).WriteWithPlaced(" = ? ", v).
+		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		Writef(" WHERE %s", field).WriteWithParams(" = {} ", v).
 		Write(queryReturning{{.Name}}).
 		Build()
 

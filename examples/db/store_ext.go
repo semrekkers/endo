@@ -33,10 +33,8 @@ func (s *Store) GetUsersFiltered(ctx context.Context, po endo.PageOptions, filte
 		qb.Write("WHERE ").WriteNamedArgs("%s", " AND ", filters...).Write(" ")
 	}
 	limit, offset := po.Args()
-	qb.
-		Write("ORDER BY id ").
-		WriteWithPlaced("LIMIT ? ", limit).
-		WriteWithPlaced("OFFSET ?", offset)
+	qb.Write("ORDER BY id ").
+		WriteWithParams("LIMIT {} OFFSET {}", limit, offset)
 	query, args := qb.Build()
 
 	var c []*User

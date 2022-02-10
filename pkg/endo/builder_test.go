@@ -51,17 +51,47 @@ func TestEmptyArgs(t *testing.T) {
 	}
 }
 
+func TestWriteWithQuestionMarkParams(t *testing.T) {
+	b := endo.Builder{FormatParam: endo.QuestionMarkParam}
+
+	query, args := b.WriteTrim(`
+			SELECT id, username, email FROM users
+		`).
+		WriteWithParams(" WHERE id = {}", 10).
+		Build()
+
+	assert.Equal(t, "SELECT id, username, email FROM users WHERE id = ?", query)
+	assert.Equal(t, []interface{}{10}, args)
+}
+
 func TestSQLSelect(t *testing.T) {
 	var b endo.Builder
 
 	query, args := b.WriteTrim(`
 			SELECT id, username, email FROM users
 		`).
-		WriteWithPlaced(" WHERE id = ?", 10).
+		WriteWithParams(" WHERE id = {}", 10).
 		Build()
 
 	assert.Equal(t, "SELECT id, username, email FROM users WHERE id = $1", query)
 	assert.Equal(t, []interface{}{10}, args)
+}
+
+func TestSQLSelectMultipleParams(t *testing.T) {
+	var b endo.Builder
+
+	query, args := b.WriteTrim(`
+			SELECT id, username, email FROM users
+		`).
+		WriteWithParams(
+			" WHERE active = {} ORDER BY id LIMIT {} OFFSET 0",
+			true,
+			100,
+		).
+		Build()
+
+	assert.Equal(t, "SELECT id, username, email FROM users WHERE active = $1 ORDER BY id LIMIT $2 OFFSET 0", query)
+	assert.Equal(t, []interface{}{true, 100}, args)
 }
 
 func TestSQLInsert(t *testing.T) {
@@ -90,9 +120,9 @@ func TestDynamicUpdate(t *testing.T) {
 	for k, v := range patch {
 		b.Write(", ")
 		b.Write(k)
-		b.WriteWithPlaced(" = ?", v)
+		b.WriteWithParams(" = {}", v)
 	}
-	b.WriteWithPlaced(" WHERE id = ?", 3)
+	b.WriteWithParams(" WHERE id = {}", 3)
 	query, args := b.Build()
 
 	assert.Equal(t, "UPDATE users SET updated_at = $1, email = $2 WHERE id = $3", query)
@@ -107,9 +137,9 @@ func TestDynamicUpdate2(t *testing.T) {
 
 	b.WriteWithArgs("UPDATE users SET updated_at = $1", time.Date(2021, 12, 22, 20, 58, 0, 0, time.UTC))
 	for k, v := range patch {
-		b.WriteWithPlaced(fmt.Sprintf(", %s = ?", k), v)
+		b.WriteWithParams(fmt.Sprintf(", %s = {}", k), v)
 	}
-	b.WriteWithPlaced(" WHERE id = ?", 3)
+	b.WriteWithParams(" WHERE id = {}", 3)
 	query, args := b.Build()
 
 	assert.Equal(t, "UPDATE users SET updated_at = $1, email = $2 WHERE id = $3", query)
@@ -129,7 +159,7 @@ func TestDynamicUpdate3(t *testing.T) {
 	}
 	patchField := func(cond bool, name string, v interface{}) {
 		if cond {
-			b.Write(", ").Write(name).WriteWithPlaced(" = ?", v)
+			b.Write(", ").Write(name).WriteWithParams(" = {}", v)
 		}
 	}
 
@@ -139,7 +169,7 @@ func TestDynamicUpdate3(t *testing.T) {
 	patchField(patch.Email != "", "email", patch.Email)
 	patchField(patch.IP != "", "ip", patch.IP)
 
-	b.WriteWithPlaced(" WHERE id = ?", 3)
+	b.WriteWithParams(" WHERE id = {}", 3)
 	query, args := b.Build()
 
 	assert.Equal(t, "UPDATE users SET updated_at = $1, ip = $2 WHERE id = $3", query)
@@ -156,8 +186,8 @@ func TestUpdateWithNamedArgs(t *testing.T) {
 
 	query, args := b.
 		Write("UPDATE users SET ").
-		WriteNamedArgs("%s = ?", ", ", patch...).
-		WriteWithPlaced(" WHERE id = ?", 3).
+		WriteNamedArgs("%s = {}", ", ", patch...).
+		WriteWithParams(" WHERE id = {}", 3).
 		Build()
 
 	assert.Equal(t, "UPDATE users SET email = $1, ip = $2, log_id = $3 WHERE id = $4", query)
@@ -167,8 +197,8 @@ func TestUpdateWithNamedArgs(t *testing.T) {
 func TestDynamicFilters(t *testing.T) {
 	var b endo.Builder
 	filters := []endo.NamedArg{
-		{"email = ?", "test@example.com"},
-		{"(ip = ? OR is_external)", "127.0.0.1"},
+		{"email = {}", "test@example.com"},
+		{"(ip = {} OR is_external)", "127.0.0.1"},
 		{Name: "active"},
 	}
 
@@ -186,10 +216,10 @@ func TestCopy(t *testing.T) {
 	b.WriteWithArgs("SELECT $1 AS marked, * FROM users", true)
 
 	query1, args1 := b.Copy().
-		WriteWithPlaced(" WHERE id = ?", 540).
+		WriteWithParams(" WHERE id = {}", 540).
 		Build()
 	query2, args2 := b.Copy().
-		WriteWithPlaced(" WHERE username = ?", "admin").
+		WriteWithParams(" WHERE username = {}", "admin").
 		Build()
 
 	assert.Equal(t, "SELECT $1 AS marked, * FROM users WHERE id = $2", query1)

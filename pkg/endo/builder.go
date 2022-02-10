@@ -9,6 +9,10 @@ import (
 // A Builder is used to build a query string using Write methods. The zero value is ready to use. Do not copy a
 // non-zero Builder, use Copy() instead.
 type Builder struct {
+	// FormatParam formats a parameter with index i.
+	// If FormatParam is nil, Builder uses endo.FixedParam.
+	FormatParam func(b *Builder, i int)
+
 	s    strings.Builder
 	args []interface{}
 }
@@ -39,15 +43,24 @@ func (b *Builder) WriteWithArgs(s string, a ...interface{}) *Builder {
 	return b
 }
 
-// WriteWithPlaced substitutes the parameter denoted by '?' in s to the correct positioned parameter ('$n'), and
-// appends it along with argument p, if found, to the Builder's buffer. Returns the receiver Builder.
-func (b *Builder) WriteWithPlaced(s string, p interface{}) *Builder {
-	if i := strings.IndexByte(s, '?'); i != -1 {
+// WriteWithParams substitutes every parameter denoted by "{}" in s to a parameter formatted
+// by Builder.FormatParam, and appends it along with the positioned argument from a, to
+// the Builder's buffer. Returns the receiver Builder.
+func (b *Builder) WriteWithParams(s string, p ...interface{}) *Builder {
+	if b.FormatParam == nil {
+		// Set default to FixedParam.
+		b.FormatParam = FixedParam
+	}
+	b.s.Grow(len(s))
+	for {
+		i := strings.Index(s, "{}")
+		if i == -1 {
+			break
+		}
 		b.s.WriteString(s[:i])
-		b.s.WriteString("$")
-		b.s.WriteString(strconv.Itoa(len(b.args) + 1))
-		s = s[i+1:]
-		b.args = append(b.args, p)
+		b.FormatParam(b, len(b.args))
+		b.args = append(b.args, p[0])
+		p, s = p[1:], s[i+2:] // advance
 	}
 	b.s.WriteString(s)
 	return b
@@ -59,16 +72,17 @@ type NamedArg struct {
 	Value interface{}
 }
 
-// WriteNamedArgs formats every NamedArg according to a format specifier with an additional placed
-// parameter (see Builder.WriteWithPlaced) and appends to the Builder's buffer.
+// WriteNamedArgs formats every NamedArg according to the format specifier, and
+// substitutes every parameter denoted by "{}" to a parameter formatted by
+// Builder.FormatParam, and appends it along with the positioned argument from a, to
+// the Builder's buffer.
 // Returns the receiver Builder.
 func (b *Builder) WriteNamedArgs(format string, sep string, a ...NamedArg) *Builder {
 	if len(a) > 0 {
-		elem := a[0]
-		b.WriteWithPlaced(fmt.Sprintf(format, elem.Name), elem.Value)
-		for _, elem = range a[1:] {
+		b.WriteWithParams(fmt.Sprintf(format, a[0].Name), a[0].Value)
+		for _, arg := range a[1:] {
 			b.s.WriteString(sep)
-			b.WriteWithPlaced(fmt.Sprintf(format, elem.Name), elem.Value)
+			b.WriteWithParams(fmt.Sprintf(format, arg.Name), arg.Value)
 		}
 	}
 	return b
@@ -97,4 +111,15 @@ func (b *Builder) String() string {
 // Build returns the query string with it's arguments.
 func (b *Builder) Build() (string, []interface{}) {
 	return b.s.String(), b.args
+}
+
+// FixedParam writes a fixed parameter ($i) to the Builder.
+func FixedParam(b *Builder, i int) {
+	b.s.WriteByte('$')
+	b.s.WriteString(strconv.Itoa(i + 1))
+}
+
+// QuestionMarkParam writes a question mark parameter (?) to the Builder.
+func QuestionMarkParam(b *Builder, i int) {
+	b.s.WriteByte('?')
 }

@@ -230,8 +230,8 @@ func (s *Store) PatchUser(ctx context.Context, key int, p UserPatch) (*User, err
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE users SET ").
-		WriteNamedArgs("%s = ?", ", ", fieldUpdates...).
-		WriteWithPlaced(" WHERE id = ? ", key).
+		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		WriteWithParams(" WHERE id = {} ", key).
 		Write(queryReturningUser).
 		Build()
 
@@ -300,8 +300,8 @@ func (s *Store) PatchUserByField(ctx context.Context, field string, v interface{
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE users SET ").
-		WriteNamedArgs("%s = ?", ", ", fieldUpdates...).
-		Writef(" WHERE %s", field).WriteWithPlaced(" = ? ", v).
+		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		Writef(" WHERE %s", field).WriteWithParams(" = {} ", v).
 		Write(queryReturningUser).
 		Build()
 
@@ -513,8 +513,8 @@ func (s *Store) PatchRole(ctx context.Context, key int, p RolePatch) (*Role, err
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE roles SET ").
-		WriteNamedArgs("%s = ?", ", ", fieldUpdates...).
-		WriteWithPlaced(" WHERE id = ? ", key).
+		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		WriteWithParams(" WHERE id = {} ", key).
 		Write(queryReturningRole).
 		Build()
 
@@ -547,8 +547,8 @@ func (s *Store) PatchRoleByField(ctx context.Context, field string, v interface{
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE roles SET ").
-		WriteNamedArgs("%s = ?", ", ", fieldUpdates...).
-		Writef(" WHERE %s", field).WriteWithPlaced(" = ? ", v).
+		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		Writef(" WHERE %s", field).WriteWithParams(" = {} ", v).
 		Write(queryReturningRole).
 		Build()
 
