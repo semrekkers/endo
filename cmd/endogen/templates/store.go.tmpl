@@ -8,6 +8,8 @@ import (
 
 	"github.com/semrekkers/endo/pkg/endo"
 
+	{{if .ModelsImportPath}}{{.ModelsImportAlias}} "{{.ModelsImportPath}}"{{end}}
+
 {{range .ExtraImports}}	{{.}}
 {{end}})
 
@@ -26,6 +28,7 @@ func New{{.Store}}(tx endo.TxFunc) *{{.Store}} {
 {{end}}
 
 {{- $store := .Store -}}
+{{- $models := .ModelsPackagePrefix -}}
 {{- $readOnly := .ReadOnly -}}
 {{range .Models}}
 
@@ -36,10 +39,10 @@ const (
 
 {{if .PrimaryKey}}
 // Get{{.Name}} finds the {{.Name}} identified by the given key.
-func (s *{{$store}}) Get{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}) (*{{.Type}}, error) {
+func (s *{{$store}}) Get{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}) (*{{$models}}{{.Type}}, error) {
 	const query = querySelect{{.Name}} + "WHERE {{.PrimaryKey.Column}} = $1"
 
-	var e {{.Type}}
+	var e {{$models}}{{.Type}}
 	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, key)
 		return scan{{.Name}}(&e, row)
@@ -54,14 +57,14 @@ func (s *{{$store}}) Get{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}})
 
 // Get{{.Name}}ByField finds the {{.Name}} where field equals v.
 // Please be aware that field is not protected against SQL injection attacks.
-func (s *{{$store}}) Get{{.Name}}ByField(ctx context.Context, field string, v interface{}) (*{{.Type}}, error) {
+func (s *{{$store}}) Get{{.Name}}ByField(ctx context.Context, field string, v interface{}) (*{{$models}}{{.Type}}, error) {
 	var qb endo.Builder
 	query := qb.
 		Write(querySelect{{.Name}}).
 		Writef("WHERE %s = $1", field).
 		String()
 
-	var e {{.Type}}
+	var e {{$models}}{{.Type}}
 	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, v)
 		return scan{{.Name}}(&e, row)
@@ -74,7 +77,7 @@ func (s *{{$store}}) Get{{.Name}}ByField(ctx context.Context, field string, v in
 }
 
 // Get{{.Plural}} gets all {{.Plural}} from the database.
-func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([]*{{.Type}}, error) {
+func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([]*{{$models}}{{.Type}}, error) {
 	const query = querySelect{{.Name}} +
 	{{- if .OrderBy -}}
 		"ORDER BY {{ .OrderBy }} " +
@@ -82,7 +85,7 @@ func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 	"LIMIT $1 OFFSET $2"
 	limit, offset := po.Args()
 
-	var c []*{{.Type}}
+	var c []*{{$models}}{{.Type}}
 	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		rows, err := dbtx.QueryContext(ctx, query, limit, offset)
 		if err != nil {
@@ -102,7 +105,7 @@ func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 {{if not $readOnly}}
 
 // Create{{.Name}} adds {{.Name}} to the database. It returns the created {{.Name}}.
-func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{.Type}}) (*{{.Type}}, error) {
+func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{$models}}{{.Type}}) (*{{$models}}{{.Type}}, error) {
 	const query = `{{template "queryInsert" .}} ` +
 		queryReturning{{.Name}}
 	
@@ -123,7 +126,7 @@ func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{.Type}}) (*{{.Type
 
 {{if .PrimaryKey}}
 // Update{{.Name}} updates the {{.Name}} identified by the given key.
-func (s *{{$store}}) Update{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, e {{.Type}}) (*{{.Type}}, error) {
+func (s *{{$store}}) Update{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, e {{$models}}{{.Type}}) (*{{$models}}{{.Type}}, error) {
 	const query = `{{template "queryUpdate" .}} WHERE {{.PrimaryKey.Column}} = ${{ lastArg (.Fields true | filterPrimary | toColumns) }} ` +
 		queryReturning{{.Name}}
 
@@ -146,7 +149,7 @@ func (s *{{$store}}) Update{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type
 
 // Update{{.Name}}ByField updates the {{.Name}} to the given e where field equals v.
 // Please be aware that field is not protected against SQL injection attacks.
-func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v interface{}, e {{.Type}}) (*{{.Type}}, error) {
+func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v interface{}, e {{$models}}{{.Type}}) (*{{$models}}{{.Type}}, error) {
 	var qb endo.Builder
 	query := qb.
 		Write(`{{template "queryUpdate" .}} `).
@@ -170,7 +173,7 @@ func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v
 	return &e, nil
 }
 
-// {{.PatchType}} can (partially) patch a {{.Type}}.
+// {{.PatchType}} can (partially) patch a {{$models}}{{.Type}}.
 type {{.PatchType}} struct {
 {{- range .Fields true | filterPrimary}}
 	{{.Name}}	*{{.Type}}
@@ -179,7 +182,7 @@ type {{.PatchType}} struct {
 
 {{if .PrimaryKey}}
 // Patch{{.Name}} updates the {{.Name}} identified by the given key, using the patch p.
-func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, p {{.PatchType}}) (*{{.Type}}, error) {
+func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, p {{.PatchType}}) (*{{$models}}{{.Type}}, error) {
 	var fieldUpdates []endo.NameValue
 	{{range .Fields true | filterPrimary}}
 	if p.{{.Name}} != nil {
@@ -201,7 +204,7 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 		Write(queryReturning{{.Name}}).
 		Build()
 
-	var e {{.Type}}
+	var e {{$models}}{{.Type}}
 	err := s.tx(ctx, endo.TxMutation, func (dbtx endo.DBTX) error {
 		return scan{{.Name}}(&e, dbtx.QueryRowContext(ctx, query, args...))
 	})
@@ -215,7 +218,7 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 
 // Patch{{.Name}}ByField updates the {{.Name}} using the given patch p where field equals v.
 // Please be aware that field is not protected against SQL injection attacks.
-func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v interface{}, p {{.PatchType}}) (*{{.Type}}, error) {
+func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v interface{}, p {{.PatchType}}) (*{{$models}}{{.Type}}, error) {
 	var fieldUpdates []endo.NameValue
 	{{range .Fields true | filterPrimary}}
 	if p.{{.Name}} != nil {
@@ -237,7 +240,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 		Write(queryReturning{{.Name}}).
 		Build()
 
-	var e {{.Type}}
+	var e {{$models}}{{.Type}}
 	err := s.tx(ctx, endo.TxMutation, func (dbtx endo.DBTX) error {
 		return scan{{.Name}}(&e, dbtx.QueryRowContext(ctx, query, args...))
 	})
@@ -276,7 +279,7 @@ func (s *{{$store}}) Delete{{.Name}}ByField(ctx context.Context, field string, v
 
 {{end}}
 
-func scan{{.Name}}(e *{{.Type}}, s endo.Scanner) error {
+func scan{{.Name}}(e *{{$models}}{{.Type}}, s endo.Scanner) error {
 	return s.Scan(
 		{{- range .Fields false }}
 		&e.{{.Name}},
@@ -284,10 +287,10 @@ func scan{{.Name}}(e *{{.Type}}, s endo.Scanner) error {
 	)
 }
 
-func scan{{.Name}}Rows(rows *sql.Rows) ([]*{{.Type}}, error) {
-	var c []*{{.Type}}
+func scan{{.Name}}Rows(rows *sql.Rows) ([]*{{$models}}{{.Type}}, error) {
+	var c []*{{$models}}{{.Type}}
 	for rows.Next() {
-		var e {{.Type}}
+		var e {{$models}}{{.Type}}
 		if err := scan{{.Name}}(&e, rows); err != nil {
 			return nil, err
 		}

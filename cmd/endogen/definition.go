@@ -11,12 +11,16 @@ import (
 
 // definition represents a schema to generate code for.
 type definition struct {
-	Package       string
-	ExtraImports  []string
-	Store         string
-	GenerateStore bool
-	ReadOnly      bool
-	Models        []*model
+	Package             string
+	ExtraImports        []string
+	ModelsExternal      bool
+	ModelsImportPath    string
+	ModelsImportAlias   string
+	ModelsPackagePrefix string
+	Store               string
+	GenerateStore       bool
+	ReadOnly            bool
+	Models              []*model
 }
 
 // model repressets a single model (table or view) to generate code for.
@@ -72,6 +76,11 @@ func (d *definition) addFile(f *ast.File) error {
 			if !ok {
 				continue
 			}
+			typeName := typeSpec.Name.Name
+			if d.ModelsExternal && !ast.IsExported(typeName) {
+				// Unexported type of external package, ignore because it isn't accessible.
+				continue
+			}
 
 			if err := d.addModel(typeSpec.Name.Name, genDecl.Doc.Text(), structType); err != nil {
 				return err
@@ -107,7 +116,7 @@ func (d *definition) addModel(name, doc string, s *ast.StructType) error {
 
 	for _, field := range s.Fields.List {
 		c := field
-		m.addFields(c)
+		m.addFields(d, c)
 	}
 
 	if m.OrderBy == "" && m.PrimaryKey != nil {
@@ -119,7 +128,7 @@ func (d *definition) addModel(name, doc string, s *ast.StructType) error {
 	return nil
 }
 
-func (m *model) addFields(f *ast.Field) error {
+func (m *model) addFields(d *definition, f *ast.Field) error {
 	typeString := sprintNode(f.Type)
 
 	var (
@@ -148,7 +157,7 @@ func (m *model) addFields(f *ast.Field) error {
 	}
 
 	if f.Names == nil {
-		if err := m.addEmbeddedStructFields(f); err == nil {
+		if err := m.addEmbeddedStructFields(d, f); err == nil {
 			return nil
 		} else if err != errNoEmbeddedStruct {
 			return err
@@ -156,8 +165,14 @@ func (m *model) addFields(f *ast.Field) error {
 	}
 
 	for _, name := range f.Names {
+		typeName := name.Name
+		if d.ModelsExternal && !ast.IsExported(typeName) {
+			// Unexported type of external package, ignore because it isn't accessible.
+			continue
+		}
+
 		spec := &field{
-			Name:       name.Name,
+			Name:       typeName,
 			Column:     column,
 			Type:       typeString,
 			PrimaryKey: isPrimary,
@@ -181,7 +196,7 @@ func (m *model) addFields(f *ast.Field) error {
 var errNoEmbeddedStruct = errors.New("no embedded struct field")
 
 // addEmbeddedStructFields adds any fields from an embedded struct field (flatten).
-func (m *model) addEmbeddedStructFields(f *ast.Field) error {
+func (m *model) addEmbeddedStructFields(d *definition, f *ast.Field) error {
 	ident, ok := f.Type.(*ast.Ident)
 	if !ok || ident.Obj == nil {
 		return errNoEmbeddedStruct
@@ -195,7 +210,7 @@ func (m *model) addEmbeddedStructFields(f *ast.Field) error {
 		return errNoEmbeddedStruct
 	}
 	for _, field := range structType.Fields.List {
-		if err := m.addFields(field); err != nil {
+		if err := m.addFields(d, field); err != nil {
 			return err
 		}
 	}
