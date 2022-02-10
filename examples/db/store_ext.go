@@ -24,3 +24,31 @@ func (s *Store) ExpandRolesInUser(ctx context.Context, u *User) error {
 		return err
 	})
 }
+
+// GetUsersFiltered gets all Users with filters applied from the database.
+func (s *Store) GetUsersFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*User, error) {
+	var qb endo.Builder
+	qb.Write(querySelectUser)
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteNamedArgs("%s", " AND ", filters...).Write(" ")
+	}
+	limit, offset := po.Args()
+	qb.
+		Write("ORDER BY id ").
+		WriteWithPlaced("LIMIT ? ", limit).
+		WriteWithPlaced("OFFSET ?", offset)
+	query, args := qb.Build()
+
+	var c []*User
+	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scanUserRows(rows)
+		return err
+	})
+
+	return c, err
+}

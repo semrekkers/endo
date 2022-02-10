@@ -40,29 +40,29 @@ func (b *Builder) WriteWithArgs(s string, a ...interface{}) *Builder {
 }
 
 // WriteWithPlaced substitutes the parameter denoted by '?' in s to the correct positioned parameter ('$n'), and
-// appends it along with argument p to the Builder's buffer. Returns the receiver Builder.
+// appends it along with argument p, if found, to the Builder's buffer. Returns the receiver Builder.
 func (b *Builder) WriteWithPlaced(s string, p interface{}) *Builder {
 	if i := strings.IndexByte(s, '?'); i != -1 {
 		b.s.WriteString(s[:i])
 		b.s.WriteString("$")
 		b.s.WriteString(strconv.Itoa(len(b.args) + 1))
 		s = s[i+1:]
+		b.args = append(b.args, p)
 	}
 	b.s.WriteString(s)
-	b.args = append(b.args, p)
 	return b
 }
 
-// NameValue represents a name value pair.
-type NameValue struct {
+// NamedArg represents a named argument.
+type NamedArg struct {
 	Name  string
 	Value interface{}
 }
 
-// WriteNameValues formats every NameValue according to a format specifier with an additional placed
+// WriteNamedArgs formats every NamedArg according to a format specifier with an additional placed
 // parameter (see Builder.WriteWithPlaced) and appends to the Builder's buffer.
 // Returns the receiver Builder.
-func (b *Builder) WriteNameValues(format string, sep string, a ...NameValue) *Builder {
+func (b *Builder) WriteNamedArgs(format string, sep string, a ...NamedArg) *Builder {
 	if len(a) > 0 {
 		elem := a[0]
 		b.WriteWithPlaced(fmt.Sprintf(format, elem.Name), elem.Value)

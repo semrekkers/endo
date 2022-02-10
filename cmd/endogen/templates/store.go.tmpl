@@ -183,10 +183,10 @@ type {{.PatchType}} struct {
 {{if .PrimaryKey}}
 // Patch{{.Name}} updates the {{.Name}} identified by the given key, using the patch p.
 func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, p {{.PatchType}}) (*{{$models}}{{.Type}}, error) {
-	var fieldUpdates []endo.NameValue
+	var fieldUpdates []endo.NamedArg
 	{{range .Fields true | filterPrimary}}
 	if p.{{.Name}} != nil {
-		fieldUpdates = append(fieldUpdates, endo.NameValue{
+		fieldUpdates = append(fieldUpdates, endo.NamedArg{
 			Name:  "{{.Column}}",
 			Value: *p.{{.Name}},
 		})
@@ -199,7 +199,7 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE {{.Table}} SET ").
-		WriteNameValues("%s = ?", ", ", fieldUpdates...).
+		WriteNamedArgs("%s = ?", ", ", fieldUpdates...).
 		WriteWithPlaced(" WHERE {{.PrimaryKey.Column}} = ? ", key).
 		Write(queryReturning{{.Name}}).
 		Build()
@@ -219,10 +219,10 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 // Patch{{.Name}}ByField updates the {{.Name}} using the given patch p where field equals v.
 // Please be aware that field is not protected against SQL injection attacks.
 func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v interface{}, p {{.PatchType}}) (*{{$models}}{{.Type}}, error) {
-	var fieldUpdates []endo.NameValue
+	var fieldUpdates []endo.NamedArg
 	{{range .Fields true | filterPrimary}}
 	if p.{{.Name}} != nil {
-		fieldUpdates = append(fieldUpdates, endo.NameValue{
+		fieldUpdates = append(fieldUpdates, endo.NamedArg{
 			Name:  "{{.Column}}",
 			Value: *p.{{.Name}},
 		})
@@ -235,7 +235,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE {{.Table}} SET ").
-		WriteNameValues("%s = ?", ", ", fieldUpdates...).
+		WriteNamedArgs("%s = ?", ", ", fieldUpdates...).
 		Writef(" WHERE %s", field).WriteWithPlaced(" = ? ", v).
 		Write(queryReturning{{.Name}}).
 		Build()

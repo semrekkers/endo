@@ -146,9 +146,9 @@ func TestDynamicUpdate3(t *testing.T) {
 	assert.Equal(t, []interface{}{time.Date(2021, time.December, 22, 20, 58, 0, 0, time.UTC), "127.0.0.1", 3}, args)
 }
 
-func TestUpdateWithNameValues(t *testing.T) {
+func TestUpdateWithNamedArgs(t *testing.T) {
 	var b endo.Builder
-	patch := []endo.NameValue{
+	patch := []endo.NamedArg{
 		{"email", "test@example.com"},
 		{"ip", "127.0.0.1"},
 		{"log_id", 38154},
@@ -156,12 +156,29 @@ func TestUpdateWithNameValues(t *testing.T) {
 
 	query, args := b.
 		Write("UPDATE users SET ").
-		WriteNameValues("%s = ?", ", ", patch...).
+		WriteNamedArgs("%s = ?", ", ", patch...).
 		WriteWithPlaced(" WHERE id = ?", 3).
 		Build()
 
 	assert.Equal(t, "UPDATE users SET email = $1, ip = $2, log_id = $3 WHERE id = $4", query)
 	assert.Equal(t, []interface{}{"test@example.com", "127.0.0.1", 38154, 3}, args)
+}
+
+func TestDynamicFilters(t *testing.T) {
+	var b endo.Builder
+	filters := []endo.NamedArg{
+		{"email = ?", "test@example.com"},
+		{"(ip = ? OR is_external)", "127.0.0.1"},
+		{Name: "active"},
+	}
+
+	query, args := b.
+		Write("SELECT * FROM users WHERE ").
+		WriteNamedArgs("%s", " AND ", filters...).
+		Build()
+
+	assert.Equal(t, "SELECT * FROM users WHERE email = $1 AND (ip = $2 OR is_external) AND active", query)
+	assert.Equal(t, []interface{}{"test@example.com", "127.0.0.1"}, args)
 }
 
 func TestCopy(t *testing.T) {
