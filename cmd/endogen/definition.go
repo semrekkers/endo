@@ -97,6 +97,9 @@ func (d *definition) addFile(f *ast.File) error {
 
 // addModel parses the given StructType as model.
 func (d *definition) addModel(name, doc string, s *ast.StructType) error {
+	if strings.Contains(doc, "endo-ignore") {
+		return nil
+	}
 	m := model{
 		Name:     name,
 		Type:     name,
