@@ -16,14 +16,7 @@ import (
 {{if .GenerateStore}}
 // {{.Store}} manages the set of APIs for database access.
 type {{.Store}} struct {
-	tx endo.TxFunc
-}
-
-// New{{.Store}} creates a new {{.Store}}.
-func New{{.Store}}(tx endo.TxFunc) *{{.Store}} {
-	return &{{.Store}}{
-		tx: tx,
-	}
+	TX endo.TxFunc
 }
 {{end}}
 
@@ -42,7 +35,7 @@ func (s *{{$store}}) Get{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}})
 	const query = querySelect{{.Name}} + "WHERE {{.PrimaryKey.Column}} = $1"
 
 	var e {{$models}}{{.Type}}
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, key)
 		return scan{{.Name}}(&e, row)
 	})
@@ -64,7 +57,7 @@ func (s *{{$store}}) Get{{.Name}}ByField(ctx context.Context, field string, v in
 		String()
 
 	var e {{$models}}{{.Type}}
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, v)
 		return scan{{.Name}}(&e, row)
 	})
@@ -85,7 +78,7 @@ func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 	limit, offset := po.Args()
 
 	var c []*{{$models}}{{.Type}}
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		rows, err := dbtx.QueryContext(ctx, query, limit, offset)
 		if err != nil {
 			return err
@@ -108,7 +101,7 @@ func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{$models}}{{.Type}}
 	const query = `{{template "queryInsert" .}} ` +
 		queryReturning{{.Name}}
 	
-	err := s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			{{- range .Fields true | filterPrimary }}
 			e.{{.Name}},
@@ -129,7 +122,7 @@ func (s *{{$store}}) Update{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type
 	const query = `{{template "queryUpdate" .}} WHERE {{.PrimaryKey.Column}} = ${{ lastArg (.Fields true | filterPrimary | toColumns) }} ` +
 		queryReturning{{.Name}}
 
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			{{- range .Fields true | filterPrimary }}
 			e.{{.Name}},
@@ -156,7 +149,7 @@ func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v
 		Write(queryReturning{{.Name}}).
 		String()
 
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			{{- range .Fields true | filterPrimary }}
 			e.{{.Name}},
@@ -204,7 +197,7 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 		Build()
 
 	var e {{$models}}{{.Type}}
-	err := s.tx(ctx, endo.TxMutation, func (dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxMutation, func (dbtx endo.DBTX) error {
 		return scan{{.Name}}(&e, dbtx.QueryRowContext(ctx, query, args...))
 	})
 	if err != nil {
@@ -240,7 +233,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 		Build()
 
 	var e {{$models}}{{.Type}}
-	err := s.tx(ctx, endo.TxMutation, func (dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxMutation, func (dbtx endo.DBTX) error {
 		return scan{{.Name}}(&e, dbtx.QueryRowContext(ctx, query, args...))
 	})
 	if err != nil {
@@ -255,7 +248,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 func (s *{{$store}}) Delete{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}) error {
 	const query = "DELETE FROM {{.Table}} WHERE {{.PrimaryKey.Column}} = $1"
 
-	return s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		_, err := dbtx.ExecContext(ctx, query, key)
 		return err
 	})
@@ -270,7 +263,7 @@ func (s *{{$store}}) Delete{{.Name}}ByField(ctx context.Context, field string, v
 		Write("DELETE FROM {{.Table}}").
 		Writef(" WHERE %s = $1", field).
 		String()
-	return s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		_, err := dbtx.ExecContext(ctx, query, v)
 		return err
 	})
