@@ -116,6 +116,7 @@ func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{$models}}{{.Type}}
 	return &e, nil
 }
 
+{{if not .Immutable}}
 {{if .PrimaryKey}}
 // Update{{.Name}} updates the {{.Name}} identified by the given key.
 func (s *{{$store}}) Update{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, e {{$models}}{{.Type}}) (*{{$models}}{{.Type}}, error) {
@@ -242,6 +243,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 
 	return &e, nil
 }
+{{end}}
 
 {{if .PrimaryKey}}
 // Delete{{.Name}} deletes the {{.Name}} identified by the given key.

@@ -31,6 +31,7 @@ type model struct {
 	Name       string // model name in source code
 	Type       string // model type in source code
 	ReadOnly   bool   // model is read-only
+	Immutable  bool   // model is immutable (no updates)
 	Plural     string // plural of name
 	Table      string // table name in database
 	PatchType  string // patch type name to be generated
@@ -111,6 +112,9 @@ func (d *definition) addModel(name, doc string, s *ast.StructType) error {
 
 	if arg := parseDocArgument(doc, "read-only"); arg != "" {
 		m.ReadOnly, _ = strconv.ParseBool(arg)
+	}
+	if arg := parseDocArgument(doc, "immutable"); arg != "" {
+		m.Immutable, _ = strconv.ParseBool(arg)
 	}
 	if m.Plural == "" {
 		// If no plural is specified, try a simple pluralization.
