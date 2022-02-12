@@ -29,7 +29,6 @@ func New{{.Store}}(tx endo.TxFunc) *{{.Store}} {
 
 {{- $store := .Store -}}
 {{- $models := .ModelsPackagePrefix -}}
-{{- $readOnly := .ReadOnly -}}
 {{range .Models}}
 
 const (
@@ -102,7 +101,7 @@ func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 	return c, nil
 }
 
-{{if not $readOnly}}
+{{if not .ReadOnly}}
 
 // Create{{.Name}} adds {{.Name}} to the database. It returns the created {{.Name}}.
 func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{$models}}{{.Type}}) (*{{$models}}{{.Type}}, error) {

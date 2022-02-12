@@ -3,9 +3,11 @@ package main
 import (
 	"errors"
 	"go/ast"
-	"go/printer"
+	"go/format"
+	"go/token"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -16,6 +18,7 @@ type definition struct {
 	ModelsExternal      bool
 	ModelsImportPath    string
 	ModelsImportAlias   string
+	ModelsPackageName   string
 	ModelsPackagePrefix string
 	Store               string
 	GenerateStore       bool
@@ -27,6 +30,7 @@ type definition struct {
 type model struct {
 	Name       string // model name in source code
 	Type       string // model type in source code
+	ReadOnly   bool   // model is read-only
 	Plural     string // plural of name
 	Table      string // table name in database
 	PatchType  string // patch type name to be generated
@@ -94,13 +98,17 @@ func (d *definition) addFile(f *ast.File) error {
 // addModel parses the given StructType as model.
 func (d *definition) addModel(name, doc string, s *ast.StructType) error {
 	m := model{
-		Name:    name,
-		Type:    name,
-		Plural:  parseDocArgument(doc, "plural"),
-		Table:   parseDocArgument(doc, "table"),
-		OrderBy: parseDocArgument(doc, "order by"),
+		Name:     name,
+		Type:     name,
+		ReadOnly: d.ReadOnly,
+		Plural:   parseDocArgument(doc, "plural"),
+		Table:    parseDocArgument(doc, "table"),
+		OrderBy:  parseDocArgument(doc, "order by"),
 	}
 
+	if arg := parseDocArgument(doc, "read-only"); arg != "" {
+		m.ReadOnly, _ = strconv.ParseBool(arg)
+	}
 	if m.Plural == "" {
 		// If no plural is specified, try a simple pluralization.
 		m.Plural = m.Name + "s"
@@ -129,7 +137,11 @@ func (d *definition) addModel(name, doc string, s *ast.StructType) error {
 }
 
 func (m *model) addFields(d *definition, f *ast.Field) error {
-	typeString := sprintNode(f.Type)
+	fieldType := f.Type
+	if d.ModelsExternal {
+		fieldType = rewriteLocalTypes(fieldType, d.ModelsPackageName).(ast.Expr)
+	}
+	typeString := sprintNode(fieldType)
 
 	var (
 		column                            string
@@ -235,12 +247,80 @@ func parseDocArgument(doc, name string) string {
 // Usaually an expression or type. For example, if n is a ast.TypeSpec
 // of string, "string" is returned.
 func sprintNode(n ast.Node) string {
-	var b strings.Builder
-	p := printer.Config{
-		Mode: printer.RawFormat,
-	}
-	if err := p.Fprint(&b, fset, n); err != nil {
+	var buf strings.Builder
+	if err := format.Node(&buf, token.NewFileSet(), n); err != nil {
 		panic(err)
 	}
-	return b.String()
+	return buf.String()
+}
+
+// rewriteLocalTypes rewrites any (in the source) local exported types
+// to imported types recursively.
+func rewriteLocalTypes(n ast.Node, importName string) ast.Node {
+	switch cur := n.(type) {
+	case *ast.Ident:
+		if cur.IsExported() {
+			return &ast.SelectorExpr{
+				X: &ast.Ident{
+					Name: importName,
+				},
+				Sel: cur,
+			}
+		}
+
+	case *ast.StarExpr:
+		return &ast.StarExpr{
+			X: rewriteLocalTypes(cur.X, importName).(ast.Expr),
+		}
+
+	case *ast.ArrayType:
+		return &ast.ArrayType{
+			Elt: rewriteLocalTypes(cur.Elt, importName).(ast.Expr),
+			Len: cur.Len,
+		}
+
+	case *ast.MapType:
+		return &ast.MapType{
+			Key:   rewriteLocalTypes(cur.Key, importName).(ast.Expr),
+			Value: rewriteLocalTypes(cur.Value, importName).(ast.Expr),
+		}
+
+	case *ast.InterfaceType:
+		return &ast.InterfaceType{
+			Methods:    rewriteLocalTypes(cur.Methods, importName).(*ast.FieldList),
+			Incomplete: cur.Incomplete,
+		}
+
+	case *ast.StructType:
+		return &ast.StructType{
+			Fields:     rewriteLocalTypes(cur.Fields, importName).(*ast.FieldList),
+			Incomplete: cur.Incomplete,
+		}
+
+	case *ast.FieldList:
+		fieldList := &ast.FieldList{
+			List: make([]*ast.Field, len(cur.List)),
+		}
+		for i, field := range cur.List {
+			fieldList.List[i] = rewriteLocalTypes(field, importName).(*ast.Field)
+		}
+		return fieldList
+
+	case *ast.Field:
+		return &ast.Field{
+			Doc:     cur.Doc,
+			Names:   cur.Names,
+			Type:    rewriteLocalTypes(cur.Type, importName).(ast.Expr),
+			Tag:     cur.Tag,
+			Comment: cur.Comment,
+		}
+
+	case *ast.FuncType:
+		return &ast.FuncType{
+			Params:  rewriteLocalTypes(cur.Params, importName).(*ast.FieldList),
+			Results: rewriteLocalTypes(cur.Results, importName).(*ast.FieldList),
+		}
+	}
+
+	return n
 }

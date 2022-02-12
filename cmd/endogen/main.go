@@ -20,26 +20,6 @@ import (
 //go:embed templates/*
 var templateFS embed.FS
 
-var (
-	fset      = token.NewFileSet()
-	templates = template.New("endogen")
-)
-
-func init() {
-	templates.Funcs(template.FuncMap{
-		"filterPrimary":  filterPrimary,
-		"toColumns":      toColumns,
-		"joinStrings":    joinStrings,
-		"mapToParams":    mapToParams,
-		"lastArg":        lastArg,
-		"toFieldUpdates": toFieldUpdates,
-	})
-	_, err := templates.ParseFS(templateFS, "templates/*")
-	if err != nil {
-		panic(err)
-	}
-}
-
 func main() {
 	var (
 		argInput       = flag.String("in", "$GOFILE", "Input Go `file` containing the model structs ('stdin' or empty reads from stdin)")
@@ -54,6 +34,7 @@ func main() {
 	flag.Parse()
 
 	var (
+		fset      = token.NewFileSet()
 		source    *ast.File
 		importDir = *argImportPath
 		err       error
@@ -96,12 +77,16 @@ func main() {
 		d.ModelsExternal = true
 		d.ModelsImportPath = pkgs[0].PkgPath
 		d.ModelsImportAlias = *argImportAlias
+		d.ModelsPackageName = pkgName
 		d.ModelsPackagePrefix = pkgName + "." // so that it corresponds to modelPackage.ModelType
 	}
 
 	exitOnErr(d.addFile(source))
 
-	var buf bytes.Buffer
+	var (
+		templates = getTemplates()
+		buf       bytes.Buffer
+	)
 	exitOnErr(templates.ExecuteTemplate(&buf, "store.go.tmpl", &d))
 	result, err := format.Source(buf.Bytes())
 	exitOnErr(err)
@@ -114,6 +99,23 @@ func main() {
 	}
 	_, err = output.Write(result)
 	exitOnErr(err)
+}
+
+func getTemplates() *template.Template {
+	v := template.New("endogen")
+	v.Funcs(template.FuncMap{
+		"filterPrimary":  filterPrimary,
+		"toColumns":      toColumns,
+		"joinStrings":    joinStrings,
+		"mapToParams":    mapToParams,
+		"lastArg":        lastArg,
+		"toFieldUpdates": toFieldUpdates,
+	})
+	_, err := v.ParseFS(templateFS, "templates/*")
+	if err != nil {
+		panic(err)
+	}
+	return v
 }
 
 // ignoreImportPaths is a list of import paths that should be ignored because
