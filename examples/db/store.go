@@ -13,14 +13,7 @@ import (
 
 // Store manages the set of APIs for database access.
 type Store struct {
-	tx endo.TxFunc
-}
-
-// NewStore creates a new Store.
-func NewStore(tx endo.TxFunc) *Store {
-	return &Store{
-		tx: tx,
-	}
+	TX endo.TxFunc
 }
 
 const (
@@ -33,7 +26,7 @@ func (s *Store) GetUser(ctx context.Context, key int) (*User, error) {
 	const query = querySelectUser + "WHERE id = $1"
 
 	var e User
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, key)
 		return scanUser(&e, row)
 	})
@@ -54,7 +47,7 @@ func (s *Store) GetUserByField(ctx context.Context, field string, v interface{})
 		String()
 
 	var e User
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, v)
 		return scanUser(&e, row)
 	})
@@ -71,7 +64,7 @@ func (s *Store) GetUsers(ctx context.Context, po endo.PageOptions) ([]*User, err
 	limit, offset := po.Args()
 
 	var c []*User
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		rows, err := dbtx.QueryContext(ctx, query, limit, offset)
 		if err != nil {
 			return err
@@ -92,7 +85,7 @@ func (s *Store) CreateUser(ctx context.Context, e User) (*User, error) {
 	const query = `INSERT INTO users (email, first_name, last_name, email_verified, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ` +
 		queryReturningUser
 
-	err := s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			e.Email,
 			e.FirstName,
@@ -116,7 +109,7 @@ func (s *Store) UpdateUser(ctx context.Context, key int, e User) (*User, error) 
 	const query = `UPDATE users SET email = $1, first_name = $2, last_name = $3, email_verified = $4, password_hash = $5, created_at = $6, updated_at = $7 WHERE id = $8 ` +
 		queryReturningUser
 
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			e.Email,
 			e.FirstName,
@@ -146,7 +139,7 @@ func (s *Store) UpdateUserByField(ctx context.Context, field string, v interface
 		Write(queryReturningUser).
 		String()
 
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			e.Email,
 			e.FirstName,
@@ -236,7 +229,7 @@ func (s *Store) PatchUser(ctx context.Context, key int, p UserPatch) (*User, err
 		Build()
 
 	var e User
-	err := s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		return scanUser(&e, dbtx.QueryRowContext(ctx, query, args...))
 	})
 	if err != nil {
@@ -306,7 +299,7 @@ func (s *Store) PatchUserByField(ctx context.Context, field string, v interface{
 		Build()
 
 	var e User
-	err := s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		return scanUser(&e, dbtx.QueryRowContext(ctx, query, args...))
 	})
 	if err != nil {
@@ -320,7 +313,7 @@ func (s *Store) PatchUserByField(ctx context.Context, field string, v interface{
 func (s *Store) DeleteUser(ctx context.Context, key int) error {
 	const query = "DELETE FROM users WHERE id = $1"
 
-	return s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		_, err := dbtx.ExecContext(ctx, query, key)
 		return err
 	})
@@ -334,7 +327,7 @@ func (s *Store) DeleteUserByField(ctx context.Context, field string, v interface
 		Write("DELETE FROM users").
 		Writef(" WHERE %s = $1", field).
 		String()
-	return s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		_, err := dbtx.ExecContext(ctx, query, v)
 		return err
 	})
@@ -376,7 +369,7 @@ func (s *Store) GetRole(ctx context.Context, key int) (*Role, error) {
 	const query = querySelectRole + "WHERE id = $1"
 
 	var e Role
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, key)
 		return scanRole(&e, row)
 	})
@@ -397,7 +390,7 @@ func (s *Store) GetRoleByField(ctx context.Context, field string, v interface{})
 		String()
 
 	var e Role
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, v)
 		return scanRole(&e, row)
 	})
@@ -414,7 +407,7 @@ func (s *Store) GetRoles(ctx context.Context, po endo.PageOptions) ([]*Role, err
 	limit, offset := po.Args()
 
 	var c []*Role
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		rows, err := dbtx.QueryContext(ctx, query, limit, offset)
 		if err != nil {
 			return err
@@ -435,7 +428,7 @@ func (s *Store) CreateRole(ctx context.Context, e Role) (*Role, error) {
 	const query = `INSERT INTO roles (name) VALUES ($1) ` +
 		queryReturningRole
 
-	err := s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			e.Name,
 		)
@@ -453,7 +446,7 @@ func (s *Store) UpdateRole(ctx context.Context, key int, e Role) (*Role, error) 
 	const query = `UPDATE roles SET name = $1 WHERE id = $2 ` +
 		queryReturningRole
 
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			e.Name,
 			key,
@@ -477,7 +470,7 @@ func (s *Store) UpdateRoleByField(ctx context.Context, field string, v interface
 		Write(queryReturningRole).
 		String()
 
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			e.Name,
 			v,
@@ -519,7 +512,7 @@ func (s *Store) PatchRole(ctx context.Context, key int, p RolePatch) (*Role, err
 		Build()
 
 	var e Role
-	err := s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		return scanRole(&e, dbtx.QueryRowContext(ctx, query, args...))
 	})
 	if err != nil {
@@ -553,7 +546,7 @@ func (s *Store) PatchRoleByField(ctx context.Context, field string, v interface{
 		Build()
 
 	var e Role
-	err := s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		return scanRole(&e, dbtx.QueryRowContext(ctx, query, args...))
 	})
 	if err != nil {
@@ -567,7 +560,7 @@ func (s *Store) PatchRoleByField(ctx context.Context, field string, v interface{
 func (s *Store) DeleteRole(ctx context.Context, key int) error {
 	const query = "DELETE FROM roles WHERE id = $1"
 
-	return s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		_, err := dbtx.ExecContext(ctx, query, key)
 		return err
 	})
@@ -581,7 +574,7 @@ func (s *Store) DeleteRoleByField(ctx context.Context, field string, v interface
 		Write("DELETE FROM roles").
 		Writef(" WHERE %s = $1", field).
 		String()
-	return s.tx(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		_, err := dbtx.ExecContext(ctx, query, v)
 		return err
 	})

@@ -72,6 +72,18 @@ type NamedArg struct {
 	Value interface{}
 }
 
+// Args represents multiple arguments. This can be helpful when you want to pass multiple
+// arguments inside a NamedArg, for example.
+type Args []interface{}
+
+func (b *Builder) writeWithExpandedParams(s string, p interface{}) {
+	if args, ok := p.(Args); ok {
+		b.WriteWithParams(s, args...)
+	} else {
+		b.WriteWithParams(s, p)
+	}
+}
+
 // WriteNamedArgs formats every NamedArg according to the format specifier, and
 // substitutes every parameter denoted by "{}" to a parameter formatted by
 // Builder.FormatParam, and appends it along with the positioned argument from a, to
@@ -79,10 +91,10 @@ type NamedArg struct {
 // Returns the receiver Builder.
 func (b *Builder) WriteNamedArgs(format string, sep string, a ...NamedArg) *Builder {
 	if len(a) > 0 {
-		b.WriteWithParams(fmt.Sprintf(format, a[0].Name), a[0].Value)
+		b.writeWithExpandedParams(fmt.Sprintf(format, a[0].Name), a[0].Value)
 		for _, arg := range a[1:] {
 			b.s.WriteString(sep)
-			b.WriteWithParams(fmt.Sprintf(format, arg.Name), arg.Value)
+			b.writeWithExpandedParams(fmt.Sprintf(format, arg.Name), arg.Value)
 		}
 	}
 	return b

@@ -211,6 +211,24 @@ func TestDynamicFilters(t *testing.T) {
 	assert.Equal(t, []interface{}{"test@example.com", "127.0.0.1"}, args)
 }
 
+func TestDynamicFiltersArgs(t *testing.T) {
+	var b endo.Builder
+	filters := []endo.NamedArg{
+		{"email = {}", "test@example.com"},
+		{"manager_id = {} OR manager_id = {}", endo.Args{765, 92}},
+		{"ip = {} OR is_external", "127.0.0.1"},
+		{Name: "active"},
+	}
+
+	query, args := b.
+		Write("SELECT * FROM users WHERE ").
+		WriteNamedArgs("(%s)", " AND ", filters...).
+		Build()
+
+	assert.Equal(t, "SELECT * FROM users WHERE (email = $1) AND (manager_id = $2 OR manager_id = $3) AND (ip = $4 OR is_external) AND (active)", query)
+	assert.Equal(t, []interface{}{"test@example.com", 765, 92, "127.0.0.1"}, args)
+}
+
 func TestCopy(t *testing.T) {
 	var b endo.Builder
 	b.WriteWithArgs("SELECT $1 AS marked, * FROM users", true)

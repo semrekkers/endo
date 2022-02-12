@@ -9,7 +9,7 @@ import (
 
 // User represents an application user.
 type User struct {
-	ID            int            `db:"id,primary"`
+	ID            int            `db:"id,auto,primary"`
 	Email         string         `db:"email"`
 	FirstName     sql.NullString `db:"first_name"`
 	LastName      sql.NullString `db:"last_name"`
@@ -24,6 +24,6 @@ type User struct {
 
 // Role represents an application role.
 type Role struct {
-	ID   int    `db:"id,primary"`
+	ID   int    `db:"id,auto,primary"`
 	Name string `db:"name"`
 }

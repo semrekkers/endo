@@ -19,7 +19,7 @@ func (s *Store) GetEffectiveRole(ctx context.Context, key int) (*EffectiveRole, 
 	const query = querySelectEffectiveRole + "WHERE user_id = $1"
 
 	var e EffectiveRole
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, key)
 		return scanEffectiveRole(&e, row)
 	})
@@ -40,7 +40,7 @@ func (s *Store) GetEffectiveRoleByField(ctx context.Context, field string, v int
 		String()
 
 	var e EffectiveRole
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query, v)
 		return scanEffectiveRole(&e, row)
 	})
@@ -57,7 +57,7 @@ func (s *Store) GetEffectiveRoles(ctx context.Context, po endo.PageOptions) ([]*
 	limit, offset := po.Args()
 
 	var c []*EffectiveRole
-	err := s.tx(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
 		rows, err := dbtx.QueryContext(ctx, query, limit, offset)
 		if err != nil {
 			return err
