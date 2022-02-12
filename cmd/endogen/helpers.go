@@ -6,18 +6,6 @@ import (
 	"strings"
 )
 
-// filterPrimary filters all primary key fields.
-func filterPrimary(v []*field) []*field {
-	fields, n := make([]*field, len(v)), 0
-	for _, field := range v {
-		if !field.PrimaryKey {
-			fields[n] = field
-			n++
-		}
-	}
-	return fields[:n]
-}
-
 // toColumns returns a list of column names of fields.
 func toColumns(fields []*field) []string {
 	columns := make([]string, len(fields))

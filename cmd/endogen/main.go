@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
-	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"text/template"
 
 	"golang.org/x/tools/go/packages"
+	"golang.org/x/tools/imports"
 )
 
 //go:embed templates/*
@@ -29,7 +29,7 @@ func main() {
 		argGenStore    = flag.Bool("gen-store", true, "Also generate the store type and constructor")
 		argPkgName     = flag.String("pkg", "", "Package `name` to use in the output (default use package name from input)")
 		argImportAlias = flag.String("import-alias", "", "Alias `name` to use for the imported external package of input")
-		argOutput      = flag.String("out", "stdout", "Output `file` to write the result to ('stdout' writes to stdout)")
+		argOutput      = flag.String("out", "", "Output `file` to write the result to (default writes to stdout)")
 	)
 	flag.Parse()
 
@@ -88,11 +88,11 @@ func main() {
 		buf       bytes.Buffer
 	)
 	exitOnErr(templates.ExecuteTemplate(&buf, "store.go.tmpl", &d))
-	result, err := format.Source(buf.Bytes())
+	result, err := imports.Process(*argOutput, buf.Bytes(), nil)
 	exitOnErr(err)
 
 	output := os.Stdout
-	if *argOutput != "stdout" {
+	if *argOutput != "" {
 		output, err = os.Create(*argOutput)
 		exitOnErr(err)
 		defer output.Close()
@@ -104,7 +104,6 @@ func main() {
 func getTemplates() *template.Template {
 	v := template.New("endogen")
 	v.Funcs(template.FuncMap{
-		"filterPrimary":  filterPrimary,
 		"toColumns":      toColumns,
 		"joinStrings":    joinStrings,
 		"mapToParams":    mapToParams,

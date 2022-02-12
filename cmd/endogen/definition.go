@@ -46,6 +46,7 @@ type field struct {
 	Column     string // column name in model
 	Type       string // field type in source code
 	PrimaryKey bool   // whether this field is a primary key
+	Auto       bool   // whether this is an automatic field
 	Exclude    bool   // whether this field is excluded from the model
 	ReadOnly   bool   // whether this field is read-only
 }
@@ -55,7 +56,7 @@ type field struct {
 func (m *model) Fields(forWrite bool) []*field {
 	fields, n := make([]*field, len(m.fields)), 0
 	for _, field := range m.fields {
-		if field.Exclude || (forWrite && field.ReadOnly) {
+		if field.Exclude || (forWrite && (field.ReadOnly || field.Auto)) {
 			continue
 		}
 		fields[n] = field
@@ -151,8 +152,8 @@ func (m *model) addFields(d *definition, f *ast.Field) error {
 	typeString := sprintNode(fieldType)
 
 	var (
-		column                            string
-		isPrimary, isExcluded, isReadOnly bool
+		column                                    string
+		isPrimary, isAuto, isExcluded, isReadOnly bool
 	)
 	if f.Tag != nil {
 		// Parse the struct tag.
@@ -167,6 +168,8 @@ func (m *model) addFields(d *definition, f *ast.Field) error {
 			switch option {
 			case "primary":
 				isPrimary = true
+			case "auto":
+				isAuto = true
 			case "exclude":
 				isExcluded = true
 			case "readonly":
@@ -195,6 +198,7 @@ func (m *model) addFields(d *definition, f *ast.Field) error {
 			Column:     column,
 			Type:       typeString,
 			PrimaryKey: isPrimary,
+			Auto:       isAuto,
 			Exclude:    isExcluded,
 			ReadOnly:   isReadOnly,
 		}

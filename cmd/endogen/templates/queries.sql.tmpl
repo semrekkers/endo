@@ -3,12 +3,12 @@ SELECT {{.Fields false | toColumns | joinStrings ", "}} FROM {{.Table}}
 {{- end -}}
 
 {{- define "queryInsert" -}}
-{{- $columns := .Fields true | filterPrimary | toColumns -}}
+{{- $columns := .Fields true | toColumns -}}
 INSERT INTO {{.Table}} ({{joinStrings ", " $columns}}) VALUES ({{mapToParams $columns | joinStrings ", "}})
 {{- end -}}
 
 {{- define "queryUpdate" -}}
-UPDATE {{.Table}} SET {{ .Fields true | filterPrimary | toColumns | toFieldUpdates | joinStrings ", " }}
+UPDATE {{.Table}} SET {{ .Fields true | toColumns | toFieldUpdates | joinStrings ", " }}
 {{- end -}}
 
 {{- define "queryReturning" -}}
