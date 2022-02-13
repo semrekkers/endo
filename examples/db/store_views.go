@@ -73,6 +73,32 @@ func (s *Store) GetEffectiveRoles(ctx context.Context, po endo.PageOptions) ([]*
 	return c, nil
 }
 
+// GetEffectiveRolesFiltered gets all EffectiveRoles with filters applied, from the database.
+func (s *Store) GetEffectiveRolesFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*EffectiveRole, error) {
+	var qb endo.Builder
+	qb.Write(querySelectEffectiveRole)
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteNamedArgs("(%s)", " AND ", filters...).Write(" ")
+	}
+	qb.Write("ORDER BY user_id, role_id ")
+	limit, offset := po.Args()
+	qb.WriteWithParams("LIMIT {} OFFSET {}", limit, offset)
+	query, args := qb.Build()
+
+	var c []*EffectiveRole
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scanEffectiveRoleRows(rows)
+		return err
+	})
+
+	return c, err
+}
+
 func scanEffectiveRole(e *EffectiveRole, s endo.Scanner) error {
 	return s.Scan(
 		&e.RoleID,

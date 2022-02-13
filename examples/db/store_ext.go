@@ -25,32 +25,6 @@ func (s *Store) ExpandRolesInUser(ctx context.Context, u *User) error {
 	})
 }
 
-// GetUsersFiltered gets all Users with filters applied from the database.
-func (s *Store) GetUsersFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*User, error) {
-	var qb endo.Builder
-	qb.Write(querySelectUser)
-	if 0 < len(filters) {
-		qb.Write("WHERE ").WriteNamedArgs("%s", " AND ", filters...).Write(" ")
-	}
-	limit, offset := po.Args()
-	qb.Write("ORDER BY id ").
-		WriteWithParams("LIMIT {} OFFSET {}", limit, offset)
-	query, args := qb.Build()
-
-	var c []*User
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		rows, err := dbtx.QueryContext(ctx, query, args...)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		c, err = scanUserRows(rows)
-		return err
-	})
-
-	return c, err
-}
-
 // GetExpandedUsers returns fully expanded User entities, filters can optionally be applied.
 func (s *Store) GetExpandedUsers(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*User, error) {
 	var c []*User

@@ -94,6 +94,34 @@ func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 	return c, nil
 }
 
+// Get{{.Plural}}Filtered gets all {{.Plural}} with filters applied, from the database.
+func (s *{{$store}}) Get{{.Plural}}Filtered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*{{$models}}{{.Type}}, error) {
+	var qb endo.Builder
+	qb.Write(querySelect{{.Name}})
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteNamedArgs("(%s)", " AND ", filters...).Write(" ")
+	}
+	{{ if .OrderBy -}}
+	qb.Write("ORDER BY {{ .OrderBy }} ")
+	{{ end -}}
+	limit, offset := po.Args()
+	qb.WriteWithParams("LIMIT {} OFFSET {}", limit, offset)
+	query, args := qb.Build()
+
+	var c []*{{$models}}{{.Type}}
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scan{{.Name}}Rows(rows)
+		return err
+	})
+
+	return c, err
+}
+
 {{if not .ReadOnly}}
 
 // Create{{.Name}} adds {{.Name}} to the database. It returns the created {{.Name}}.

@@ -80,6 +80,32 @@ func (s *Store) GetUsers(ctx context.Context, po endo.PageOptions) ([]*User, err
 	return c, nil
 }
 
+// GetUsersFiltered gets all Users with filters applied, from the database.
+func (s *Store) GetUsersFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*User, error) {
+	var qb endo.Builder
+	qb.Write(querySelectUser)
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteNamedArgs("(%s)", " AND ", filters...).Write(" ")
+	}
+	qb.Write("ORDER BY id ")
+	limit, offset := po.Args()
+	qb.WriteWithParams("LIMIT {} OFFSET {}", limit, offset)
+	query, args := qb.Build()
+
+	var c []*User
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scanUserRows(rows)
+		return err
+	})
+
+	return c, err
+}
+
 // CreateUser adds User to the database. It returns the created User.
 func (s *Store) CreateUser(ctx context.Context, e User) (*User, error) {
 	const query = `INSERT INTO users (email, first_name, last_name, email_verified, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ` +
@@ -421,6 +447,32 @@ func (s *Store) GetRoles(ctx context.Context, po endo.PageOptions) ([]*Role, err
 	}
 
 	return c, nil
+}
+
+// GetRolesFiltered gets all Roles with filters applied, from the database.
+func (s *Store) GetRolesFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*Role, error) {
+	var qb endo.Builder
+	qb.Write(querySelectRole)
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteNamedArgs("(%s)", " AND ", filters...).Write(" ")
+	}
+	qb.Write("ORDER BY id ")
+	limit, offset := po.Args()
+	qb.WriteWithParams("LIMIT {} OFFSET {}", limit, offset)
+	query, args := qb.Build()
+
+	var c []*Role
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scanRoleRows(rows)
+		return err
+	})
+
+	return c, err
 }
 
 // CreateRole adds Role to the database. It returns the created Role.
