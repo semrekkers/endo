@@ -20,18 +20,32 @@ import (
 //go:embed templates/*
 var templateFS embed.FS
 
+const (
+	patchTypeModeInclude = "include"
+	patchTypeModeOnly    = "only"
+	patchTypeModeImport  = "import"
+)
+
 func main() {
 	var (
-		argInput       = flag.String("in", "$GOFILE", "Input Go `file` containing the model structs ('stdin' or empty reads from stdin)")
-		argImportPath  = flag.String("import", ".", "Import `path` of the input")
-		argViews       = flag.Bool("views", false, "Treat model structs as read-only views")
-		argStoreType   = flag.String("store-type", "Store", "The `type name` to use for the store")
-		argGenStore    = flag.Bool("gen-store", true, "Also generate the store type and constructor")
-		argPkgName     = flag.String("pkg", "", "Package `name` to use in the output (default use package name from input)")
-		argImportAlias = flag.String("import-alias", "", "Alias `name` to use for the imported external package of input")
-		argOutput      = flag.String("out", "", "Output `file` to write the result to (default writes to stdout)")
+		argInput         = flag.String("in", "$GOFILE", "Input Go `file` containing the model structs ('stdin' or empty reads from stdin)")
+		argImportPath    = flag.String("import", ".", "Import `path` of the input")
+		argViews         = flag.Bool("views", false, "Treat model structs as read-only views")
+		argPatchTypeMode = flag.String("patch", "include", "Patch type generation `mode` [include, only, import]")
+		argStoreType     = flag.String("store-type", "Store", "The `type name` to use for the store")
+		argGenStore      = flag.Bool("gen-store", true, "Also generate the store type and constructor")
+		argPkgName       = flag.String("pkg", "", "Package `name` to use in the output (default use package name from input)")
+		argImportAlias   = flag.String("import-alias", "", "Alias `name` to use for the imported external package of input")
+		argOutput        = flag.String("out", "", "Output `file` to write the result to (default writes to stdout)")
 	)
 	flag.Parse()
+	switch *argPatchTypeMode {
+	case patchTypeModeInclude, patchTypeModeOnly, patchTypeModeImport:
+		break
+
+	default:
+		exitOnErr(fmt.Errorf("patch flag value can only be one of: include, only or import, not %s", *argPatchTypeMode))
+	}
 
 	var (
 		fset      = token.NewFileSet()
@@ -54,6 +68,7 @@ func main() {
 	d := definition{
 		Package:       sourcePackageName,
 		ExtraImports:  getExtraImportSpecs(source.Imports),
+		PatchTypeMode: *argPatchTypeMode,
 		Store:         *argStoreType,
 		GenerateStore: *argGenStore,
 		ReadOnly:      *argViews,
@@ -84,10 +99,14 @@ func main() {
 	exitOnErr(d.addFile(source))
 
 	var (
-		templates = getTemplates()
-		buf       bytes.Buffer
+		templates   = getTemplates()
+		runTemplate = "store.go.tmpl"
+		buf         bytes.Buffer
 	)
-	exitOnErr(templates.ExecuteTemplate(&buf, "store.go.tmpl", &d))
+	if *argPatchTypeMode == patchTypeModeOnly {
+		runTemplate = "patchtype.go.tmpl"
+	}
+	exitOnErr(templates.ExecuteTemplate(&buf, runTemplate, &d))
 	result, err := imports.Process(*argOutput, buf.Bytes(), nil)
 	exitOnErr(err)
 

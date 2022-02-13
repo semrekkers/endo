@@ -15,6 +15,7 @@ import (
 type definition struct {
 	Package             string
 	ExtraImports        []string
+	PatchTypeMode       string
 	ModelsExternal      bool
 	ModelsImportPath    string
 	ModelsImportAlias   string
@@ -28,15 +29,17 @@ type definition struct {
 
 // model repressets a single model (table or view) to generate code for.
 type model struct {
-	Name       string // model name in source code
-	Type       string // model type in source code
-	ReadOnly   bool   // model is read-only
-	Immutable  bool   // model is immutable (no updates)
-	Plural     string // plural of name
-	Table      string // table name in database
-	PatchType  string // patch type name to be generated
-	PrimaryKey *field // primary key field, if any
-	OrderBy    string // order by clause to use for result set, if any
+	Name          string // model name in source code
+	PackagePrefix string // package import name prefix of model, or empty when local
+	Type          string // model type in source code
+	ReadOnly      bool   // model is read-only
+	Immutable     bool   // model is immutable (no updates)
+	Plural        string // plural of name
+	Table         string // table name in database
+	PatchName     string // name of patch type to be generated
+	PatchType     string // full patch type
+	PrimaryKey    *field // primary key field, if any
+	OrderBy       string // order by clause to use for result set, if any
 
 	fields []*field
 }
@@ -103,12 +106,13 @@ func (d *definition) addModel(name, doc string, s *ast.StructType) error {
 		return nil
 	}
 	m := model{
-		Name:     name,
-		Type:     name,
-		ReadOnly: d.ReadOnly,
-		Plural:   parseDocArgument(doc, "plural"),
-		Table:    parseDocArgument(doc, "table"),
-		OrderBy:  parseDocArgument(doc, "order by"),
+		Name:          name,
+		PackagePrefix: d.ModelsPackagePrefix,
+		Type:          name,
+		ReadOnly:      d.ReadOnly,
+		Plural:        parseDocArgument(doc, "plural"),
+		Table:         parseDocArgument(doc, "table"),
+		OrderBy:       parseDocArgument(doc, "order by"),
 	}
 
 	if arg := parseDocArgument(doc, "read-only"); arg != "" {
@@ -125,9 +129,13 @@ func (d *definition) addModel(name, doc string, s *ast.StructType) error {
 		// If no table is specified, derive it from the plural.
 		m.Table = strings.ToLower(m.Plural)
 	}
-	if m.PatchType == "" {
+	if m.PatchName == "" {
 		// If no patch type is specified, derive it from the name.
-		m.PatchType = m.Name + "Patch"
+		m.PatchName = m.Name + "Patch"
+	}
+	m.PatchType = m.PatchName
+	if d.PatchTypeMode != patchTypeModeInclude {
+		m.PatchType = d.ModelsPackagePrefix + m.PatchType
 	}
 
 	for _, field := range s.Fields.List {
