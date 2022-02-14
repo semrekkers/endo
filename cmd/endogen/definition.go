@@ -181,7 +181,7 @@ func (d *definition) addModel(name, comment string, s *ast.StructType) error {
 	return nil
 }
 
-func (d *definition) resolveModels(subset []*regexp.Regexp) error {
+func (d *definition) resolveModels(include, exclude []*regexp.Regexp) error {
 	patchTypeModels := make(map[string]*model)
 	for _, m := range d.Models {
 		if m.BindPatchType != "" {
@@ -194,9 +194,10 @@ func (d *definition) resolveModels(subset []*regexp.Regexp) error {
 			patchTypeModels[m.Name] = m
 			continue
 		}
-		if matchesSelection(m.Name, subset) {
-			resolved = append(resolved, m)
+		if !matchesSelection(m.Name, include, true) || matchesSelection(m.Name, exclude, false) {
+			continue
 		}
+		resolved = append(resolved, m)
 	}
 	for _, m := range resolved {
 		if m.BindPatchType == "" {
@@ -330,9 +331,9 @@ func (m *model) addEmbeddedStructFields(d *definition, f *ast.Field) error {
 	return nil
 }
 
-func matchesSelection(s string, subset []*regexp.Regexp) bool {
+func matchesSelection(s string, subset []*regexp.Regexp, defaultMatch bool) bool {
 	if len(subset) < 1 {
-		return true
+		return defaultMatch
 	}
 	for _, pattern := range subset {
 		if pattern.MatchString(s) {

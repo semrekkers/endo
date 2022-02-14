@@ -33,7 +33,8 @@ func main() {
 		argImportPath    = flag.String("import", ".", "Import `path` of the input")
 		argViews         = flag.Bool("views", false, "Treat model structs as read-only views")
 		argPatchTypeMode = flag.String("patch", "include", "Patch type generation `mode` [include, only, import]")
-		argSubset        = flag.String("subset", "", "Select this subset of models for processing, list of `regex` separated by '/'")
+		argInclude       = flag.String("include", "", "Include this subset of models for processing, list of `regex` separated by '/'")
+		argExclude       = flag.String("exclude", "", "Exclude this subset of models for processing, list of `regex` separated by '/'")
 		argStoreType     = flag.String("store-type", "Store", "The `type name` to use for the store")
 		argGenStore      = flag.Bool("gen-store", true, "Also generate the store type and constructor")
 		argPkgName       = flag.String("pkg", "", "Package `name` to use in the output (default use package name from input)")
@@ -48,7 +49,13 @@ func main() {
 	default:
 		exitOnErr(fmt.Errorf("patch flag value can only be one of: include, only or import, not %s", *argPatchTypeMode))
 	}
-	subsetRegex, err := patternsToRegex(*argSubset)
+	var (
+		includeRegex, excludeRegex []*regexp.Regexp
+		err                        error
+	)
+	includeRegex, err = patternsToRegex(*argInclude)
+	exitOnErr(err)
+	excludeRegex, err = patternsToRegex(*argExclude)
 	exitOnErr(err)
 
 	var (
@@ -110,7 +117,7 @@ func main() {
 			exitOnErr(d.addFile(source))
 		}
 	}
-	exitOnErr(d.resolveModels(subsetRegex))
+	exitOnErr(d.resolveModels(includeRegex, excludeRegex))
 
 	var (
 		templates   = getTemplates()
@@ -135,6 +142,9 @@ func main() {
 }
 
 func patternsToRegex(s string) ([]*regexp.Regexp, error) {
+	if s == "" {
+		return nil, nil
+	}
 	var (
 		patterns = strings.Split(s, "/")
 		regex    = make([]*regexp.Regexp, len(patterns))
