@@ -11,6 +11,8 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"text/template"
 
 	"golang.org/x/tools/go/packages"
@@ -28,10 +30,10 @@ const (
 
 func main() {
 	var (
-		argInput         = flag.String("in", "$GOFILE", "Input Go `file` containing the model structs ('stdin' or empty reads from stdin)")
 		argImportPath    = flag.String("import", ".", "Import `path` of the input")
 		argViews         = flag.Bool("views", false, "Treat model structs as read-only views")
 		argPatchTypeMode = flag.String("patch", "include", "Patch type generation `mode` [include, only, import]")
+		argSubset        = flag.String("subset", "", "Select this subset of models for processing, list of `regex` separated by '/'")
 		argStoreType     = flag.String("store-type", "Store", "The `type name` to use for the store")
 		argGenStore      = flag.Bool("gen-store", true, "Also generate the store type and constructor")
 		argPkgName       = flag.String("pkg", "", "Package `name` to use in the output (default use package name from input)")
@@ -46,14 +48,18 @@ func main() {
 	default:
 		exitOnErr(fmt.Errorf("patch flag value can only be one of: include, only or import, not %s", *argPatchTypeMode))
 	}
+	subsetRegex, err := patternsToRegex(*argSubset)
+	exitOnErr(err)
 
 	var (
-		fset      = token.NewFileSet()
-		source    *ast.File
-		importDir = *argImportPath
-		err       error
+		fset          = token.NewFileSet()
+		inputFileName = os.ExpandEnv("$GOFILE")
+		source        *ast.File
+		importDir     = *argImportPath
 	)
-	inputFileName := os.ExpandEnv(*argInput)
+	if firstArg := flag.Arg(0); firstArg != "" {
+		inputFileName = firstArg
+	}
 	if inputFileName == "" || inputFileName == "stdin" {
 		source, err = parser.ParseFile(fset, "", os.Stdin, parser.ParseComments)
 	} else {
@@ -67,7 +73,7 @@ func main() {
 	sourcePackageName := source.Name.String()
 	d := definition{
 		Package:       sourcePackageName,
-		ExtraImports:  getExtraImportSpecs(source.Imports),
+		Imports:       baseImports,
 		PatchTypeMode: *argPatchTypeMode,
 		Store:         *argStoreType,
 		GenerateStore: *argGenStore,
@@ -89,14 +95,22 @@ func main() {
 		if *argImportAlias != "" {
 			pkgName = *argImportAlias
 		}
+		d.addImport(*argImportAlias, pkgs[0].PkgPath)
 		d.ModelsExternal = true
-		d.ModelsImportPath = pkgs[0].PkgPath
-		d.ModelsImportAlias = *argImportAlias
 		d.ModelsPackageName = pkgName
 		d.ModelsPackagePrefix = pkgName + "." // so that it corresponds to modelPackage.ModelType
 	}
 
 	exitOnErr(d.addFile(source))
+	if inputFileArgs := flag.Args(); 1 < len(inputFileArgs) {
+		// Add subsequent source files
+		for _, inputFileName := range inputFileArgs[1:] {
+			source, err = parser.ParseFile(fset, inputFileName, nil, parser.ParseComments)
+			exitOnErr(err)
+			exitOnErr(d.addFile(source))
+		}
+	}
+	exitOnErr(d.resolveModels(subsetRegex))
 
 	var (
 		templates   = getTemplates()
@@ -120,6 +134,28 @@ func main() {
 	exitOnErr(err)
 }
 
+func patternsToRegex(s string) ([]*regexp.Regexp, error) {
+	var (
+		patterns = strings.Split(s, "/")
+		regex    = make([]*regexp.Regexp, len(patterns))
+		err      error
+	)
+	for i, pattern := range patterns {
+		regex[i], err = regexp.Compile(pattern)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return regex, nil
+}
+
+var baseImports = []*importInfo{
+	{Path: "context"},
+	{Path: "database/sql"},
+	{Path: "github.com/lib/pq"},
+	{Path: "github.com/semrekkers/endo/pkg/endo"},
+}
+
 func getTemplates() *template.Template {
 	v := template.New("endogen")
 	v.Funcs(template.FuncMap{
@@ -134,39 +170,6 @@ func getTemplates() *template.Template {
 		panic(err)
 	}
 	return v
-}
-
-// ignoreImportPaths is a list of import paths that should be ignored because
-// they are already imported in the generated code.
-var ignoreImportPaths = []string{
-	`"context"`,
-	`"database/sql"`,
-	`"github.com/lib/pq"`,
-	`"github.com/semrekkers/endo/pkg/endo"`,
-}
-
-func getExtraImportSpecs(imports []*ast.ImportSpec) []string {
-	var result []string
-
-outer:
-	for _, extraImport := range imports {
-		var path, name string
-		if extraImport.Path == nil {
-			continue
-		}
-		path = extraImport.Path.Value
-		for _, ignorePath := range ignoreImportPaths {
-			if path == ignorePath {
-				continue outer
-			}
-		}
-		if extraImport.Name != nil {
-			name = extraImport.Name.Name
-		}
-		result = append(result, name+" "+path)
-	}
-
-	return result
 }
 
 func exitOnErr(err error) {

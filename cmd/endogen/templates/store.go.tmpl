@@ -3,15 +3,9 @@
 package {{.Package}}
 
 import (
-	"context"
-	"database/sql"
-
-	"github.com/semrekkers/endo/pkg/endo"
-
-	{{if .ModelsImportPath}}{{.ModelsImportAlias}} "{{.ModelsImportPath}}"{{end}}
-
-{{range .ExtraImports}}	{{.}}
-{{end}})
+	{{ range .Imports -}}
+	{{.Spec}}
+	{{end}})
 
 {{if .GenerateStore}}
 // {{.Store}} manages the set of APIs for database access.
@@ -200,9 +194,9 @@ func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v
 
 {{if .PrimaryKey}}
 // Patch{{.Name}} updates the {{.Name}} identified by the given key, using the patch p.
-func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, p {{.PatchType}}) (*{{.PackagePrefix}}{{.Type}}, error) {
+func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, p {{.Patch.PackagePrefix}}{{.Patch.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
 	var fieldUpdates []endo.NamedArg
-	{{range .Fields true}}
+	{{range .Patch.Fields true}}
 	if p.{{.Name}} != nil {
 		fieldUpdates = append(fieldUpdates, endo.NamedArg{
 			Name:  "{{.Column}}",
@@ -236,9 +230,9 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 
 // Patch{{.Name}}ByField updates the {{.Name}} using the given patch p where field equals v.
 // Please be aware that field is not protected against SQL injection attacks.
-func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v interface{}, p {{.PatchType}}) (*{{.PackagePrefix}}{{.Type}}, error) {
+func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v interface{}, p {{.Patch.PackagePrefix}}{{.Patch.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
 	var fieldUpdates []endo.NamedArg
-	{{range .Fields true}}
+	{{range .Patch.Fields true}}
 	if p.{{.Name}} != nil {
 		fieldUpdates = append(fieldUpdates, endo.NamedArg{
 			Name:  "{{.Column}}",

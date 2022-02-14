@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/format"
 	"go/token"
@@ -14,11 +15,9 @@ import (
 // definition represents a schema to generate code for.
 type definition struct {
 	Package             string
-	ExtraImports        []string
+	Imports             []*importInfo
 	PatchTypeMode       string
 	ModelsExternal      bool
-	ModelsImportPath    string
-	ModelsImportAlias   string
 	ModelsPackageName   string
 	ModelsPackagePrefix string
 	Store               string
@@ -27,19 +26,29 @@ type definition struct {
 	Models              []*model
 }
 
+type importInfo struct {
+	Name, Path string
+}
+
+func (inf *importInfo) Spec() string {
+	return fmt.Sprintf("%s %q", inf.Name, inf.Path)
+}
+
 // model repressets a single model (table or view) to generate code for.
 type model struct {
 	Name          string // model name in source code
 	PackagePrefix string // package import name prefix of model, or empty when local
 	Type          string // model type in source code
+	Generate      bool   // whether this model must be generated
 	ReadOnly      bool   // model is read-only
 	Immutable     bool   // model is immutable (no updates)
 	Plural        string // plural of name
 	Table         string // table name in database
-	PatchName     string // name of patch type to be generated
-	PatchType     string // full patch type
 	PrimaryKey    *field // primary key field, if any
 	OrderBy       string // order by clause to use for result set, if any
+
+	BindPatchType string // bind the specified existing model as patch type of this model
+	Patch         *model // patch type of this model
 
 	fields []*field
 }
@@ -68,9 +77,35 @@ func (m *model) Fields(forWrite bool) []*field {
 	return fields[:n]
 }
 
+func (d *definition) addImport(name, path string) {
+	for _, imported := range d.Imports {
+		if path == imported.Path {
+			return
+		}
+	}
+	d.Imports = append(d.Imports, &importInfo{
+		Name: name,
+		Path: path,
+	})
+}
+
+func (d *definition) addImports(a []*ast.ImportSpec) {
+	for _, v := range a {
+		var (
+			name    string
+			path, _ = strconv.Unquote(v.Path.Value)
+		)
+		if v.Name != nil {
+			name = v.Name.Name
+		}
+		d.addImport(name, path)
+	}
+}
+
 // addFile parses the given file and adds the models it defines to
 // the definition.
 func (d *definition) addFile(f *ast.File) error {
+	d.addImports(f.Imports)
 	for _, decl := range f.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok {
@@ -91,7 +126,7 @@ func (d *definition) addFile(f *ast.File) error {
 				continue
 			}
 
-			if err := d.addModel(typeSpec.Name.Name, genDecl.Doc.Text(), structType); err != nil {
+			if err := d.addModel(typeName, genDecl.Doc.Text(), structType); err != nil {
 				return err
 			}
 		}
@@ -101,24 +136,26 @@ func (d *definition) addFile(f *ast.File) error {
 }
 
 // addModel parses the given StructType as model.
-func (d *definition) addModel(name, doc string, s *ast.StructType) error {
-	if strings.Contains(doc, "endo-ignore") {
+func (d *definition) addModel(name, comment string, s *ast.StructType) error {
+	if strings.Contains(comment, "endo-ignore") {
 		return nil
 	}
+	args := parseCommentArguments(comment)
 	m := model{
 		Name:          name,
 		PackagePrefix: d.ModelsPackagePrefix,
 		Type:          name,
 		ReadOnly:      d.ReadOnly,
-		Plural:        parseDocArgument(doc, "plural"),
-		Table:         parseDocArgument(doc, "table"),
-		OrderBy:       parseDocArgument(doc, "order by"),
+		Plural:        args["plural"],
+		Table:         args["table"],
+		OrderBy:       args["order by"],
+		BindPatchType: args["patch type"],
 	}
 
-	if arg := parseDocArgument(doc, "read-only"); arg != "" {
+	if arg := args["read-only"]; arg != "" {
 		m.ReadOnly, _ = strconv.ParseBool(arg)
 	}
-	if arg := parseDocArgument(doc, "immutable"); arg != "" {
+	if arg := args["immutable"]; arg != "" {
 		m.Immutable, _ = strconv.ParseBool(arg)
 	}
 	if m.Plural == "" {
@@ -128,14 +165,6 @@ func (d *definition) addModel(name, doc string, s *ast.StructType) error {
 	if m.Table == "" {
 		// If no table is specified, derive it from the plural.
 		m.Table = strings.ToLower(m.Plural)
-	}
-	if m.PatchName == "" {
-		// If no patch type is specified, derive it from the name.
-		m.PatchName = m.Name + "Patch"
-	}
-	m.PatchType = m.PatchName
-	if d.PatchTypeMode != patchTypeModeInclude {
-		m.PatchType = d.ModelsPackagePrefix + m.PatchType
 	}
 
 	for _, field := range s.Fields.List {
@@ -150,6 +179,59 @@ func (d *definition) addModel(name, doc string, s *ast.StructType) error {
 
 	d.Models = append(d.Models, &m)
 	return nil
+}
+
+func (d *definition) resolveModels(subset []*regexp.Regexp) error {
+	patchTypeModels := make(map[string]*model)
+	for _, m := range d.Models {
+		if m.BindPatchType != "" {
+			patchTypeModels[m.BindPatchType] = nil
+		}
+	}
+	var resolved []*model
+	for _, m := range d.Models {
+		if _, ok := patchTypeModels[m.Name]; ok {
+			patchTypeModels[m.Name] = m
+			continue
+		}
+		if matchesSelection(m.Name, subset) {
+			resolved = append(resolved, m)
+		}
+	}
+	for _, m := range resolved {
+		if m.BindPatchType == "" {
+			// Generate patch type based on model.
+			m.Patch = d.newPatchTypeOf(m)
+			continue
+		}
+		patchType := patchTypeModels[m.BindPatchType]
+		if patchType == nil {
+			return fmt.Errorf("could not find patch type %s for model %s", m.BindPatchType, m.Name)
+		}
+		m.Patch = patchType
+	}
+	d.Models = resolved
+	return nil
+}
+
+func (d *definition) newPatchTypeOf(b *model) *model {
+	name := b.Name + "Patch"
+	m := &model{
+		Generate: true,
+		Name:     name,
+		Type:     name,
+	}
+	for _, bField := range b.fields {
+		if bField.PrimaryKey || bField.Auto || bField.Exclude || bField.ReadOnly {
+			continue
+		}
+		m.fields = append(m.fields, &field{
+			Name:   bField.Name,
+			Column: bField.Column,
+			Type:   "*" + bField.Type, // pointer type
+		})
+	}
+	return m
 }
 
 func (m *model) addFields(d *definition, f *ast.Field) error {
@@ -248,18 +330,31 @@ func (m *model) addEmbeddedStructFields(d *definition, f *ast.Field) error {
 	return nil
 }
 
-// parseDocArgument finds a docstring parameter with name in doc, or returns
-// an empty string.
+func matchesSelection(s string, subset []*regexp.Regexp) bool {
+	if len(subset) < 1 {
+		return true
+	}
+	for _, pattern := range subset {
+		if pattern.MatchString(s) {
+			return true
+		}
+	}
+	return false
+}
+
+var commentArgumentRegex = regexp.MustCompile(`([\w ]+):\s*([\w_ ]+|"(?:[^"]|"")*")`)
+
+// parseCommentArguments finds defined parameters in comment.
 //
-// Example docstring parameter: `order by: id DESC`. The value can contain
+// Example parameter: `order by: id DESC`. The value can contain
 // words, underscores and spaces. Values can also be quoted using a double
 // quote. Quotes can be escaped using two double quotes.
-func parseDocArgument(doc, name string) string {
-	re := regexp.MustCompile(name + `:\s*([\w_ ]+|"(?:[^"]|"")*")`)
-	if match := re.FindStringSubmatch(doc); len(match) == 2 {
-		return strings.Trim(match[1], `"`)
+func parseCommentArguments(comment string) (res map[string]string) {
+	res = make(map[string]string)
+	for _, match := range commentArgumentRegex.FindAllStringSubmatch(comment, -1) {
+		res[match[1]] = match[2]
 	}
-	return ""
+	return res
 }
 
 // sprintNode returns the string (type) representation of the given node.
