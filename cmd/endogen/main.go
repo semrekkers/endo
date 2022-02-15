@@ -21,9 +21,9 @@ import (
 var templateFS embed.FS
 
 const (
-	patchTypeModeInclude = "include"
-	patchTypeModeOnly    = "only"
-	patchTypeModeImport  = "import"
+	patchTypeModeInclude = "include" // include the model's patch types in the output
+	patchTypeModeOnly    = "only"    // only output the model's patch types
+	patchTypeModeImport  = "import"  // use the model's patch types from an imported package (no generation)
 )
 
 func main() {
@@ -106,7 +106,7 @@ func main() {
 			exitOnErr(d.addFile(source))
 		}
 	}
-	exitOnErr(d.resolveModelDependencies())
+	exitOnErr(d.resolveModelDependencies(*argPatchTypeMode != patchTypeModeImport))
 
 	var (
 		templates   = getTemplates()

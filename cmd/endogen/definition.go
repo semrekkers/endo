@@ -181,7 +181,7 @@ func (d *definition) addModel(name, comment string, s *ast.StructType) error {
 	return nil
 }
 
-func (d *definition) resolveModelDependencies() error {
+func (d *definition) resolveModelDependencies(createMissing bool) error {
 	patchTypeModels := make(map[string]*model)
 	for _, m := range d.Models {
 		if m.BindPatchType != "" {
@@ -197,23 +197,25 @@ func (d *definition) resolveModelDependencies() error {
 		resolved = append(resolved, m)
 	}
 	for _, m := range resolved {
-		if m.BindPatchType == "" {
-			// Generate patch type based on model.
-			m.Patch = d.newPatchTypeOf(m)
-			continue
+		if m.BindPatchType != "" {
+			m.Patch = patchTypeModels[m.BindPatchType]
 		}
-		patchType := patchTypeModels[m.BindPatchType]
-		if patchType == nil {
-			return fmt.Errorf("could not find patch type %s for model %s", m.BindPatchType, m.Name)
+		if m.Patch == nil {
+			name := m.BindPatchType
+			if name == "" {
+				name = m.Name + "Patch"
+			}
+			if !createMissing {
+				return fmt.Errorf("could not find patch type %s for model %s inside the imported packages", name, m.Name)
+			}
+			m.Patch = d.newPatchTypeOf(m, name)
 		}
-		m.Patch = patchType
 	}
 	d.Models = resolved
 	return nil
 }
 
-func (d *definition) newPatchTypeOf(b *model) *model {
-	name := b.Name + "Patch"
+func (d *definition) newPatchTypeOf(b *model, name string) *model {
 	m := &model{
 		Generate:  true,
 		Name:      name,
