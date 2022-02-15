@@ -3,6 +3,8 @@
 {{ if and .Patch.Generate (not (or .ReadOnly .Immutable)) }}
 
 // {{.Patch.Name}} can (partially) patch a {{.PackagePrefix}}{{.Type}}.
+//
+// Endo: (immutable: true).
 type {{.Patch.Name}} struct {
 {{- range .Patch.Fields true }}
 	{{.Name}}	{{.Type}}	`db:"{{.Column}}"`

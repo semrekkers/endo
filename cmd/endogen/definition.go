@@ -183,32 +183,42 @@ func (d *definition) addModel(name, comment string, s *ast.StructType) error {
 
 func (d *definition) resolveModelDependencies(createMissing bool) error {
 	patchTypeModels := make(map[string]*model)
+	// Gather required patch types
 	for _, m := range d.Models {
-		if m.BindPatchType != "" {
-			patchTypeModels[m.BindPatchType] = nil
+		if m.ReadOnly || m.Immutable {
+			// Can't update this model; skip.
+			continue
 		}
+
+		if m.BindPatchType == "" {
+			// Use default patch type name (<model.Name>Patch) when BindPatchType is empty.
+			m.BindPatchType = m.Name + "Patch"
+		}
+		patchTypeModels[m.BindPatchType] = nil
 	}
+	// Move every patch type to patchTypeModels, everything else to resolved.
 	var resolved []*model
 	for _, m := range d.Models {
 		if _, ok := patchTypeModels[m.Name]; ok {
 			patchTypeModels[m.Name] = m
+		} else {
+			resolved = append(resolved, m)
+		}
+	}
+	// Bind the patch types.
+	for _, m := range resolved {
+		if m.ReadOnly || m.Immutable {
+			// Can't update this model; skip.
 			continue
 		}
-		resolved = append(resolved, m)
-	}
-	for _, m := range resolved {
-		if m.BindPatchType != "" {
-			m.Patch = patchTypeModels[m.BindPatchType]
-		}
+
+		m.Patch = patchTypeModels[m.BindPatchType]
 		if m.Patch == nil {
-			name := m.BindPatchType
-			if name == "" {
-				name = m.Name + "Patch"
-			}
 			if !createMissing {
-				return fmt.Errorf("could not find patch type %s for model %s inside the imported packages", name, m.Name)
+				return fmt.Errorf("could not find patch type %s for model %s inside the imported packages", m.BindPatchType, m.Name)
 			}
-			m.Patch = d.newPatchTypeOf(m, name)
+			// Create patch type based on model when it doesn't exists.
+			m.Patch = d.newPatchTypeOf(m, m.BindPatchType)
 		}
 	}
 	d.Models = resolved
@@ -220,8 +230,8 @@ func (d *definition) newPatchTypeOf(b *model, name string) *model {
 		Generate:  true,
 		Name:      name,
 		Type:      name,
-		ReadOnly:  b.ReadOnly,
-		Immutable: b.Immutable,
+		ReadOnly:  false,
+		Immutable: true, // you can't mutate a patch type
 	}
 	for _, bField := range b.fields {
 		if bField.PrimaryKey || bField.Auto || bField.Exclude || bField.ReadOnly {
