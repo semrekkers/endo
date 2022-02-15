@@ -1,6 +1,6 @@
 {{- define "patchType" -}}
 
-{{if .Patch.Generate}}
+{{ if and .Patch.Generate (not (or .ReadOnly .Immutable)) }}
 
 // {{.Patch.Name}} can (partially) patch a {{.PackagePrefix}}{{.Type}}.
 type {{.Patch.Name}} struct {
@@ -24,8 +24,6 @@ import (
 
 {{range .Models}}
 
-{{if not (or .ReadOnly .Immutable)}}
 {{template "patchType" .}}
-{{end}}
 
 {{end}}

@@ -11,8 +11,6 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"text/template"
 
 	"golang.org/x/tools/go/packages"
@@ -33,8 +31,6 @@ func main() {
 		argImportPath    = flag.String("import", ".", "Import `path` of the input")
 		argViews         = flag.Bool("views", false, "Treat model structs as read-only views")
 		argPatchTypeMode = flag.String("patch", "include", "Patch type generation `mode` [include, only, import]")
-		argInclude       = flag.String("include", "", "Include this subset of models for processing, list of `regex` separated by '/'")
-		argExclude       = flag.String("exclude", "", "Exclude this subset of models for processing, list of `regex` separated by '/'")
 		argStoreType     = flag.String("store-type", "Store", "The `type name` to use for the store")
 		argGenStore      = flag.Bool("gen-store", true, "Also generate the store type and constructor")
 		argPkgName       = flag.String("pkg", "", "Package `name` to use in the output (default use package name from input)")
@@ -49,20 +45,13 @@ func main() {
 	default:
 		exitOnErr(fmt.Errorf("patch flag value can only be one of: include, only or import, not %s", *argPatchTypeMode))
 	}
-	var (
-		includeRegex, excludeRegex []*regexp.Regexp
-		err                        error
-	)
-	includeRegex, err = patternsToRegex(*argInclude)
-	exitOnErr(err)
-	excludeRegex, err = patternsToRegex(*argExclude)
-	exitOnErr(err)
 
 	var (
 		fset          = token.NewFileSet()
 		inputFileName = os.ExpandEnv("$GOFILE")
 		source        *ast.File
 		importDir     = *argImportPath
+		err           error
 	)
 	if firstArg := flag.Arg(0); firstArg != "" {
 		inputFileName = firstArg
@@ -117,7 +106,7 @@ func main() {
 			exitOnErr(d.addFile(source))
 		}
 	}
-	exitOnErr(d.resolveModels(includeRegex, excludeRegex))
+	exitOnErr(d.resolveModelDependencies())
 
 	var (
 		templates   = getTemplates()
@@ -139,24 +128,6 @@ func main() {
 	}
 	_, err = output.Write(result)
 	exitOnErr(err)
-}
-
-func patternsToRegex(s string) ([]*regexp.Regexp, error) {
-	if s == "" {
-		return nil, nil
-	}
-	var (
-		patterns = strings.Split(s, "/")
-		regex    = make([]*regexp.Regexp, len(patterns))
-		err      error
-	)
-	for i, pattern := range patterns {
-		regex[i], err = regexp.Compile(pattern)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return regex, nil
 }
 
 var baseImports = []*importInfo{

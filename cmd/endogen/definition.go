@@ -181,7 +181,7 @@ func (d *definition) addModel(name, comment string, s *ast.StructType) error {
 	return nil
 }
 
-func (d *definition) resolveModels(include, exclude []*regexp.Regexp) error {
+func (d *definition) resolveModelDependencies() error {
 	patchTypeModels := make(map[string]*model)
 	for _, m := range d.Models {
 		if m.BindPatchType != "" {
@@ -192,9 +192,6 @@ func (d *definition) resolveModels(include, exclude []*regexp.Regexp) error {
 	for _, m := range d.Models {
 		if _, ok := patchTypeModels[m.Name]; ok {
 			patchTypeModels[m.Name] = m
-			continue
-		}
-		if !matchesSelection(m.Name, include, true) || matchesSelection(m.Name, exclude, false) {
 			continue
 		}
 		resolved = append(resolved, m)
@@ -218,9 +215,11 @@ func (d *definition) resolveModels(include, exclude []*regexp.Regexp) error {
 func (d *definition) newPatchTypeOf(b *model) *model {
 	name := b.Name + "Patch"
 	m := &model{
-		Generate: true,
-		Name:     name,
-		Type:     name,
+		Generate:  true,
+		Name:      name,
+		Type:      name,
+		ReadOnly:  b.ReadOnly,
+		Immutable: b.Immutable,
 	}
 	for _, bField := range b.fields {
 		if bField.PrimaryKey || bField.Auto || bField.Exclude || bField.ReadOnly {
@@ -331,19 +330,7 @@ func (m *model) addEmbeddedStructFields(d *definition, f *ast.Field) error {
 	return nil
 }
 
-func matchesSelection(s string, subset []*regexp.Regexp, defaultMatch bool) bool {
-	if len(subset) < 1 {
-		return defaultMatch
-	}
-	for _, pattern := range subset {
-		if pattern.MatchString(s) {
-			return true
-		}
-	}
-	return false
-}
-
-var commentArgumentRegex = regexp.MustCompile(`([\w ]+):\s*([\w_ ]+|"(?:[^"]|"")*")`)
+var commentArgumentRegex = regexp.MustCompile(`([\w- ]+):\s*(\w[\w_ ]*|"(?:[^"]|"")*")`)
 
 // parseCommentArguments finds defined parameters in comment.
 //
