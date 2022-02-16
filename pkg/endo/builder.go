@@ -66,35 +66,35 @@ func (b *Builder) WriteWithParams(s string, p ...interface{}) *Builder {
 	return b
 }
 
-// NamedArg represents a named argument.
-type NamedArg struct {
-	Name  string
+// KeyValue represents a key and value.
+type KeyValue struct {
+	Key   string
 	Value interface{}
 }
 
-// Args represents multiple arguments. This can be helpful when you want to pass multiple
-// arguments inside a NamedArg, for example.
-type Args []interface{}
+// Values represents multiple values. This can be helpful when you want to pass multiple
+// values inside a KeyValue, for example.
+type Values []interface{}
 
-func (b *Builder) writeWithExpandedParams(s string, p interface{}) {
-	if args, ok := p.(Args); ok {
+func (b *Builder) writeWithExpandedValue(s string, p interface{}) {
+	if args, ok := p.(Values); ok {
 		b.WriteWithParams(s, args...)
 	} else {
 		b.WriteWithParams(s, p)
 	}
 }
 
-// WriteNamedArgs formats every NamedArg according to the format specifier, and
+// WriteKeyValues formats every Key according to the format specifier, and
 // substitutes every parameter denoted by "{}" to a parameter formatted by
-// Builder.FormatParam, and appends it along with the positioned argument from a, to
+// Builder.FormatParam, and appends it along with the positioned Value from a, to
 // the Builder's buffer.
 // Returns the receiver Builder.
-func (b *Builder) WriteNamedArgs(format string, sep string, a ...NamedArg) *Builder {
+func (b *Builder) WriteKeyValues(format string, sep string, a ...KeyValue) *Builder {
 	if len(a) > 0 {
-		b.writeWithExpandedParams(fmt.Sprintf(format, a[0].Name), a[0].Value)
+		b.writeWithExpandedValue(fmt.Sprintf(format, a[0].Key), a[0].Value)
 		for _, arg := range a[1:] {
 			b.s.WriteString(sep)
-			b.writeWithExpandedParams(fmt.Sprintf(format, arg.Name), arg.Value)
+			b.writeWithExpandedValue(fmt.Sprintf(format, arg.Key), arg.Value)
 		}
 	}
 	return b

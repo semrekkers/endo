@@ -176,9 +176,9 @@ func TestDynamicUpdate3(t *testing.T) {
 	assert.Equal(t, []interface{}{time.Date(2021, time.December, 22, 20, 58, 0, 0, time.UTC), "127.0.0.1", 3}, args)
 }
 
-func TestUpdateWithNamedArgs(t *testing.T) {
+func TestUpdateWithKeyValues(t *testing.T) {
 	var b endo.Builder
-	patch := []endo.NamedArg{
+	patch := []endo.KeyValue{
 		{"email", "test@example.com"},
 		{"ip", "127.0.0.1"},
 		{"log_id", 38154},
@@ -186,7 +186,7 @@ func TestUpdateWithNamedArgs(t *testing.T) {
 
 	query, args := b.
 		Write("UPDATE users SET ").
-		WriteNamedArgs("%s = {}", ", ", patch...).
+		WriteKeyValues("%s = {}", ", ", patch...).
 		WriteWithParams(" WHERE id = {}", 3).
 		Build()
 
@@ -196,15 +196,15 @@ func TestUpdateWithNamedArgs(t *testing.T) {
 
 func TestDynamicFilters(t *testing.T) {
 	var b endo.Builder
-	filters := []endo.NamedArg{
+	filters := []endo.KeyValue{
 		{"email = {}", "test@example.com"},
 		{"(ip = {} OR is_external)", "127.0.0.1"},
-		{Name: "active"},
+		{Key: "active"},
 	}
 
 	query, args := b.
 		Write("SELECT * FROM users WHERE ").
-		WriteNamedArgs("%s", " AND ", filters...).
+		WriteKeyValues("%s", " AND ", filters...).
 		Build()
 
 	assert.Equal(t, "SELECT * FROM users WHERE email = $1 AND (ip = $2 OR is_external) AND active", query)
@@ -213,16 +213,16 @@ func TestDynamicFilters(t *testing.T) {
 
 func TestDynamicFiltersArgs(t *testing.T) {
 	var b endo.Builder
-	filters := []endo.NamedArg{
+	filters := []endo.KeyValue{
 		{"email = {}", "test@example.com"},
-		{"manager_id = {} OR manager_id = {}", endo.Args{765, 92}},
+		{"manager_id = {} OR manager_id = {}", endo.Values{765, 92}},
 		{"ip = {} OR is_external", "127.0.0.1"},
-		{Name: "active"},
+		{Key: "active"},
 	}
 
 	query, args := b.
 		Write("SELECT * FROM users WHERE ").
-		WriteNamedArgs("(%s)", " AND ", filters...).
+		WriteKeyValues("(%s)", " AND ", filters...).
 		Build()
 
 	assert.Equal(t, "SELECT * FROM users WHERE (email = $1) AND (manager_id = $2 OR manager_id = $3) AND (ip = $4 OR is_external) AND (active)", query)

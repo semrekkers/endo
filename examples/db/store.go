@@ -5,10 +5,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/semrekkers/endo/pkg/endo"
-
-	"time"
 )
 
 // Store manages the set of APIs for database access.
@@ -81,11 +80,11 @@ func (s *Store) GetUsers(ctx context.Context, po endo.PageOptions) ([]*User, err
 }
 
 // GetUsersFiltered gets all Users with filters applied, from the database.
-func (s *Store) GetUsersFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*User, error) {
+func (s *Store) GetUsersFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.KeyValue) ([]*User, error) {
 	var qb endo.Builder
 	qb.Write(querySelectUser)
 	if 0 < len(filters) {
-		qb.Write("WHERE ").WriteNamedArgs("(%s)", " AND ", filters...).Write(" ")
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
 	qb.Write("ORDER BY id ")
 	limit, offset := po.Args()
@@ -185,60 +184,60 @@ func (s *Store) UpdateUserByField(ctx context.Context, field string, v interface
 	return &e, nil
 }
 
-// UserPatch can (partially) patch a User.
+// UserPatch (partially) patches: User.
 type UserPatch struct {
-	Email         *string
-	FirstName     *sql.NullString
-	LastName      *sql.NullString
-	EmailVerified *bool
-	PasswordHash  *sql.NullString
-	CreatedAt     *time.Time
-	UpdatedAt     *time.Time
+	Email         *string         `db:"email"`
+	FirstName     *sql.NullString `db:"first_name"`
+	LastName      *sql.NullString `db:"last_name"`
+	EmailVerified *bool           `db:"email_verified"`
+	PasswordHash  *sql.NullString `db:"password_hash"`
+	CreatedAt     *time.Time      `db:"created_at"`
+	UpdatedAt     *time.Time      `db:"updated_at"`
 }
 
 // PatchUser updates the User identified by the given key, using the patch p.
 func (s *Store) PatchUser(ctx context.Context, key int, p UserPatch) (*User, error) {
-	var fieldUpdates []endo.NamedArg
+	var fieldUpdates []endo.KeyValue
 
 	if p.Email != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "email",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "email",
 			Value: *p.Email,
 		})
 	}
 	if p.FirstName != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "first_name",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "first_name",
 			Value: *p.FirstName,
 		})
 	}
 	if p.LastName != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "last_name",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "last_name",
 			Value: *p.LastName,
 		})
 	}
 	if p.EmailVerified != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "email_verified",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "email_verified",
 			Value: *p.EmailVerified,
 		})
 	}
 	if p.PasswordHash != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "password_hash",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "password_hash",
 			Value: *p.PasswordHash,
 		})
 	}
 	if p.CreatedAt != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "created_at",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "created_at",
 			Value: *p.CreatedAt,
 		})
 	}
 	if p.UpdatedAt != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "updated_at",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "updated_at",
 			Value: *p.UpdatedAt,
 		})
 	}
@@ -249,7 +248,7 @@ func (s *Store) PatchUser(ctx context.Context, key int, p UserPatch) (*User, err
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE users SET ").
-		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
 		WriteWithParams(" WHERE id = {} ", key).
 		Write(queryReturningUser).
 		Build()
@@ -268,47 +267,47 @@ func (s *Store) PatchUser(ctx context.Context, key int, p UserPatch) (*User, err
 // PatchUserByField updates the User using the given patch p where field equals v.
 // Please be aware that field is not protected against SQL injection attacks.
 func (s *Store) PatchUserByField(ctx context.Context, field string, v interface{}, p UserPatch) (*User, error) {
-	var fieldUpdates []endo.NamedArg
+	var fieldUpdates []endo.KeyValue
 
 	if p.Email != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "email",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "email",
 			Value: *p.Email,
 		})
 	}
 	if p.FirstName != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "first_name",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "first_name",
 			Value: *p.FirstName,
 		})
 	}
 	if p.LastName != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "last_name",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "last_name",
 			Value: *p.LastName,
 		})
 	}
 	if p.EmailVerified != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "email_verified",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "email_verified",
 			Value: *p.EmailVerified,
 		})
 	}
 	if p.PasswordHash != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "password_hash",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "password_hash",
 			Value: *p.PasswordHash,
 		})
 	}
 	if p.CreatedAt != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "created_at",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "created_at",
 			Value: *p.CreatedAt,
 		})
 	}
 	if p.UpdatedAt != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "updated_at",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "updated_at",
 			Value: *p.UpdatedAt,
 		})
 	}
@@ -319,7 +318,7 @@ func (s *Store) PatchUserByField(ctx context.Context, field string, v interface{
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE users SET ").
-		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
 		Writef(" WHERE %s", field).WriteWithParams(" = {} ", v).
 		Write(queryReturningUser).
 		Build()
@@ -450,11 +449,11 @@ func (s *Store) GetRoles(ctx context.Context, po endo.PageOptions) ([]*Role, err
 }
 
 // GetRolesFiltered gets all Roles with filters applied, from the database.
-func (s *Store) GetRolesFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*Role, error) {
+func (s *Store) GetRolesFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.KeyValue) ([]*Role, error) {
 	var qb endo.Builder
 	qb.Write(querySelectRole)
 	if 0 < len(filters) {
-		qb.Write("WHERE ").WriteNamedArgs("(%s)", " AND ", filters...).Write(" ")
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
 	qb.Write("ORDER BY id ")
 	limit, offset := po.Args()
@@ -536,18 +535,18 @@ func (s *Store) UpdateRoleByField(ctx context.Context, field string, v interface
 	return &e, nil
 }
 
-// RolePatch can (partially) patch a Role.
+// RolePatch (partially) patches: Role.
 type RolePatch struct {
-	Name *string
+	Name *string `db:"name"`
 }
 
 // PatchRole updates the Role identified by the given key, using the patch p.
 func (s *Store) PatchRole(ctx context.Context, key int, p RolePatch) (*Role, error) {
-	var fieldUpdates []endo.NamedArg
+	var fieldUpdates []endo.KeyValue
 
 	if p.Name != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "name",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "name",
 			Value: *p.Name,
 		})
 	}
@@ -558,7 +557,7 @@ func (s *Store) PatchRole(ctx context.Context, key int, p RolePatch) (*Role, err
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE roles SET ").
-		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
 		WriteWithParams(" WHERE id = {} ", key).
 		Write(queryReturningRole).
 		Build()
@@ -577,11 +576,11 @@ func (s *Store) PatchRole(ctx context.Context, key int, p RolePatch) (*Role, err
 // PatchRoleByField updates the Role using the given patch p where field equals v.
 // Please be aware that field is not protected against SQL injection attacks.
 func (s *Store) PatchRoleByField(ctx context.Context, field string, v interface{}, p RolePatch) (*Role, error) {
-	var fieldUpdates []endo.NamedArg
+	var fieldUpdates []endo.KeyValue
 
 	if p.Name != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "name",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "name",
 			Value: *p.Name,
 		})
 	}
@@ -592,7 +591,7 @@ func (s *Store) PatchRoleByField(ctx context.Context, field string, v interface{
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE roles SET ").
-		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
 		Writef(" WHERE %s", field).WriteWithParams(" = {} ", v).
 		Write(queryReturningRole).
 		Build()

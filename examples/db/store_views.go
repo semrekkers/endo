@@ -74,11 +74,11 @@ func (s *Store) GetEffectiveRoles(ctx context.Context, po endo.PageOptions) ([]*
 }
 
 // GetEffectiveRolesFiltered gets all EffectiveRoles with filters applied, from the database.
-func (s *Store) GetEffectiveRolesFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*EffectiveRole, error) {
+func (s *Store) GetEffectiveRolesFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.KeyValue) ([]*EffectiveRole, error) {
 	var qb endo.Builder
 	qb.Write(querySelectEffectiveRole)
 	if 0 < len(filters) {
-		qb.Write("WHERE ").WriteNamedArgs("(%s)", " AND ", filters...).Write(" ")
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
 	qb.Write("ORDER BY user_id, role_id ")
 	limit, offset := po.Args()

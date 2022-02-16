@@ -355,7 +355,7 @@ var commentArgumentRegex = regexp.MustCompile(`(\w[\w- ]+):\s*(\w[\w_ ]*|"(?:[^"
 func parseCommentArguments(comment string) (res map[string]string) {
 	res = make(map[string]string)
 	for _, match := range commentArgumentRegex.FindAllStringSubmatch(comment, -1) {
-		res[match[1]] = match[2]
+		res[match[1]] = strings.Trim(match[2], `"`)
 	}
 	return res
 }

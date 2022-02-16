@@ -117,6 +117,8 @@ func main() {
 		runTemplate = "patchtype.go.tmpl"
 	}
 	exitOnErr(templates.ExecuteTemplate(&buf, runTemplate, &d))
+	// For template debugging:
+	// os.Stdout.Write(buf.Bytes())
 	result, err := imports.Process(*argOutput, buf.Bytes(), nil)
 	exitOnErr(err)
 

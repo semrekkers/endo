@@ -89,11 +89,11 @@ func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([
 }
 
 // Get{{.Plural}}Filtered gets all {{.Plural}} with filters applied, from the database.
-func (s *{{$store}}) Get{{.Plural}}Filtered(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*{{.PackagePrefix}}{{.Type}}, error) {
+func (s *{{$store}}) Get{{.Plural}}Filtered(ctx context.Context, po endo.PageOptions, filters ...endo.KeyValue) ([]*{{.PackagePrefix}}{{.Type}}, error) {
 	var qb endo.Builder
 	qb.Write(querySelect{{.Name}})
 	if 0 < len(filters) {
-		qb.Write("WHERE ").WriteNamedArgs("(%s)", " AND ", filters...).Write(" ")
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
 	{{ if .OrderBy -}}
 	qb.Write("ORDER BY {{ .OrderBy }} ")
@@ -195,11 +195,11 @@ func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v
 {{if .PrimaryKey}}
 // Patch{{.Name}} updates the {{.Name}} identified by the given key, using the patch p.
 func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, p {{.Patch.PackagePrefix}}{{.Patch.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
-	var fieldUpdates []endo.NamedArg
+	var fieldUpdates []endo.KeyValue
 	{{range .Patch.Fields true}}
 	if p.{{.Name}} != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "{{.Column}}",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "{{.Column}}",
 			Value: *p.{{.Name}},
 		})
 	}
@@ -211,7 +211,7 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE {{.Table}} SET ").
-		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
 		WriteWithParams(" WHERE {{.PrimaryKey.Column}} = {} ", key).
 		Write(queryReturning{{.Name}}).
 		Build()
@@ -231,11 +231,11 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 // Patch{{.Name}}ByField updates the {{.Name}} using the given patch p where field equals v.
 // Please be aware that field is not protected against SQL injection attacks.
 func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v interface{}, p {{.Patch.PackagePrefix}}{{.Patch.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
-	var fieldUpdates []endo.NamedArg
+	var fieldUpdates []endo.KeyValue
 	{{range .Patch.Fields true}}
 	if p.{{.Name}} != nil {
-		fieldUpdates = append(fieldUpdates, endo.NamedArg{
-			Name:  "{{.Column}}",
+		fieldUpdates = append(fieldUpdates, endo.KeyValue{
+			Key:   "{{.Column}}",
 			Value: *p.{{.Name}},
 		})
 	}
@@ -247,7 +247,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 	var qb endo.Builder
 	query, args := qb.
 		Write("UPDATE {{.Table}} SET ").
-		WriteNamedArgs("%s = {}", ", ", fieldUpdates...).
+		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
 		Writef(" WHERE %s", field).WriteWithParams(" = {} ", v).
 		Write(queryReturning{{.Name}}).
 		Build()

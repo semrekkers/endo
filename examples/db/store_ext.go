@@ -26,7 +26,7 @@ func (s *Store) ExpandRolesInUser(ctx context.Context, u *User) error {
 }
 
 // GetExpandedUsers returns fully expanded User entities, filters can optionally be applied.
-func (s *Store) GetExpandedUsers(ctx context.Context, po endo.PageOptions, filters ...endo.NamedArg) ([]*User, error) {
+func (s *Store) GetExpandedUsers(ctx context.Context, po endo.PageOptions, filters ...endo.KeyValue) ([]*User, error) {
 	var c []*User
 
 	// Use existing Store methods inside one transaction, note the endo.TxMulti flag.
