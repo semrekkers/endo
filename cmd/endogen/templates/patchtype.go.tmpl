@@ -1,11 +1,9 @@
 {{- define "patchType" -}}
 
-{{ if and .Patch.Generate (not (or .ReadOnly .Immutable)) }}
+{{ if .Patch.Generate }}
 
-// {{.Patch.Name}} can (partially) patch a {{.PackagePrefix}}{{.Type}}.
-//
-// Endo: (immutable: true).
-type {{.Patch.Name}} struct {
+// {{.Patch.Type}} (partially) patches: {{.Type}}.
+type {{.Patch.Type}} struct {
 {{- range .Patch.Fields true }}
 	{{.Name}}	{{.Type}}	`db:"{{.Column}}"`
 {{- end}}
@@ -26,6 +24,8 @@ import (
 
 {{range .Models}}
 
+{{if .Updatable}}
 {{template "patchType" .}}
+{{end}}
 
 {{end}}

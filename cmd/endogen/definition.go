@@ -39,16 +39,16 @@ type model struct {
 	Name          string // model name in source code
 	PackagePrefix string // package import name prefix of model, or empty when local
 	Type          string // model type in source code
+	Patches       string // if not empty: this is an patch type model for <Patches>
 	Generate      bool   // whether this model must be generated
 	ReadOnly      bool   // model is read-only
-	Immutable     bool   // model is immutable (no updates)
+	Immutable     bool   // model is immutable (only create, no updates)
 	Plural        string // plural of name
 	Table         string // table name in database
 	PrimaryKey    *field // primary key field, if any
 	OrderBy       string // order by clause to use for result set, if any
 
-	BindPatchType string // bind the specified existing model as patch type of this model
-	Patch         *model // patch type of this model
+	Patch *model // patch type of this model
 
 	fields []*field
 }
@@ -75,6 +75,11 @@ func (m *model) Fields(forWrite bool) []*field {
 		n++
 	}
 	return fields[:n]
+}
+
+// Updatable returns whether m is updatable by patch or replacement.
+func (m *model) Updatable() bool {
+	return !(m.ReadOnly || m.Immutable || m.Patches != "")
 }
 
 func (d *definition) addImport(name, path string) {
@@ -145,11 +150,11 @@ func (d *definition) addModel(name, comment string, s *ast.StructType) error {
 		Name:          name,
 		PackagePrefix: d.ModelsPackagePrefix,
 		Type:          name,
+		Patches:       args["patches"],
 		ReadOnly:      d.ReadOnly,
 		Plural:        args["plural"],
 		Table:         args["table"],
 		OrderBy:       args["order by"],
-		BindPatchType: args["patch type"],
 	}
 
 	if arg := args["read-only"]; arg != "" {
@@ -182,56 +187,54 @@ func (d *definition) addModel(name, comment string, s *ast.StructType) error {
 }
 
 func (d *definition) resolveModelDependencies(createMissing bool) error {
-	patchTypeModels := make(map[string]*model)
-	// Gather required patch types
+	var (
+		baseTypes  []*model
+		patchTypes []*model
+	)
+	// Split the models into base and patch types, we want to keep the order.
 	for _, m := range d.Models {
-		if m.ReadOnly || m.Immutable {
-			// Can't update this model; skip.
-			continue
-		}
-
-		if m.BindPatchType == "" {
-			// Use default patch type name (<model.Name>Patch) when BindPatchType is empty.
-			m.BindPatchType = m.Name + "Patch"
-		}
-		patchTypeModels[m.BindPatchType] = nil
-	}
-	// Move every patch type to patchTypeModels, everything else to resolved.
-	var resolved []*model
-	for _, m := range d.Models {
-		if _, ok := patchTypeModels[m.Name]; ok {
-			patchTypeModels[m.Name] = m
+		if m.Patches != "" {
+			patchTypes = append(patchTypes, m)
 		} else {
-			resolved = append(resolved, m)
+			baseTypes = append(baseTypes, m)
 		}
 	}
-	// Bind the patch types.
-	for _, m := range resolved {
-		if m.ReadOnly || m.Immutable {
-			// Can't update this model; skip.
+	// Assign each patch type to it's base.
+	for _, patchType := range patchTypes {
+		for _, m := range baseTypes {
+			if patchType.Patches == m.Type {
+				if !m.Updatable() {
+					return fmt.Errorf("%s: cannot patch a non-updatable type (%s)", patchType.Type, m.Type)
+				}
+				if m.Patch != nil {
+					return fmt.Errorf("%s: type (%s) already has a patch type (%s), only one can be assigned", patchType.Type, m.Type, m.Patch.Type)
+				}
+				m.Patch = patchType
+			}
+		}
+	}
+	// Check missing patch types.
+	for _, m := range baseTypes {
+		if !m.Updatable() || m.Patch != nil {
 			continue
 		}
-
-		m.Patch = patchTypeModels[m.BindPatchType]
-		if m.Patch == nil {
-			if !createMissing {
-				return fmt.Errorf("could not find patch type %s for model %s inside the imported packages", m.BindPatchType, m.Name)
-			}
-			// Create patch type based on model when it doesn't exists.
-			m.Patch = d.newPatchTypeOf(m, m.BindPatchType)
+		if !createMissing {
+			return fmt.Errorf("type (%s) has no patch type but requires one", m.Type)
 		}
+		m.Patch = d.newPatchTypeOf(m)
 	}
-	d.Models = resolved
+
+	d.Models = baseTypes
 	return nil
 }
 
-func (d *definition) newPatchTypeOf(b *model, name string) *model {
+func (d *definition) newPatchTypeOf(b *model) *model {
+	name := b.Type + "Patch"
 	m := &model{
-		Generate:  true,
-		Name:      name,
-		Type:      name,
-		ReadOnly:  false,
-		Immutable: true, // you can't mutate a patch type
+		Generate: true,
+		Name:     name,
+		Type:     name,
+		Patches:  b.Type,
 	}
 	for _, bField := range b.fields {
 		if bField.PrimaryKey || bField.Auto || bField.Exclude || bField.ReadOnly {
@@ -342,7 +345,7 @@ func (m *model) addEmbeddedStructFields(d *definition, f *ast.Field) error {
 	return nil
 }
 
-var commentArgumentRegex = regexp.MustCompile(`([\w- ]+):\s*(\w[\w_ ]*|"(?:[^"]|"")*")`)
+var commentArgumentRegex = regexp.MustCompile(`(\w[\w- ]+):\s*(\w[\w_ ]*|"(?:[^"]|"")*")`)
 
 // parseCommentArguments finds defined parameters in comment.
 //
