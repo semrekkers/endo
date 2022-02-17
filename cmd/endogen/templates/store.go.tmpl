@@ -26,7 +26,7 @@ const (
 {{if .PrimaryKey}}
 // Get{{.Name}} finds the {{.Name}} identified by the given key.
 func (s *{{$store}}) Get{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
-	const query = querySelect{{.Name}} + "WHERE {{.PrimaryKey.Column}} = $1"
+	const query = querySelect{{.Name}} + `WHERE {{.PrimaryKey.Column}} = $1`
 
 	var e {{.PackagePrefix}}{{.Type}}
 	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
@@ -66,7 +66,7 @@ func (s *{{$store}}) Get{{.Name}}ByField(ctx context.Context, field string, v in
 func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([]*{{.PackagePrefix}}{{.Type}}, error) {
 	const query = querySelect{{.Name}} +
 	{{- if .OrderBy -}}
-		"ORDER BY {{ .OrderBy }} " +
+		`ORDER BY {{ .OrderBy }} ` +
 	{{- end -}}
 	"LIMIT $1 OFFSET $2"
 	limit, offset := po.Args()
@@ -96,7 +96,7 @@ func (s *{{$store}}) Get{{.Plural}}Filtered(ctx context.Context, po endo.PageOpt
 		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
 	{{ if .OrderBy -}}
-	qb.Write("ORDER BY {{ .OrderBy }} ")
+	qb.Write(`ORDER BY {{ .OrderBy }} `)
 	{{ end -}}
 	limit, offset := po.Args()
 	qb.WriteWithParams("LIMIT {} OFFSET {}", limit, offset)
@@ -199,7 +199,7 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 	{{range .Patch.Fields true}}
 	if p.{{.Name}} != nil {
 		fieldUpdates = append(fieldUpdates, endo.KeyValue{
-			Key:   "{{.Column}}",
+			Key:   `{{.Column}}`,
 			Value: *p.{{.Name}},
 		})
 	}
@@ -210,9 +210,9 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 
 	var qb endo.Builder
 	query, args := qb.
-		Write("UPDATE {{.Table}} SET ").
+		Write(`UPDATE {{.Table}} SET `).
 		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
-		WriteWithParams(" WHERE {{.PrimaryKey.Column}} = {} ", key).
+		WriteWithParams(` WHERE {{.PrimaryKey.Column}} = {} `, key).
 		Write(queryReturning{{.Name}}).
 		Build()
 
@@ -235,7 +235,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 	{{range .Patch.Fields true}}
 	if p.{{.Name}} != nil {
 		fieldUpdates = append(fieldUpdates, endo.KeyValue{
-			Key:   "{{.Column}}",
+			Key:   `{{.Column}}`,
 			Value: *p.{{.Name}},
 		})
 	}
@@ -246,7 +246,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 
 	var qb endo.Builder
 	query, args := qb.
-		Write("UPDATE {{.Table}} SET ").
+		Write(`UPDATE {{.Table}} SET `).
 		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
 		Writef(" WHERE %s", field).WriteWithParams(" = {} ", v).
 		Write(queryReturning{{.Name}}).
@@ -267,7 +267,7 @@ func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v 
 {{if .PrimaryKey}}
 // Delete{{.Name}} deletes the {{.Name}} identified by the given key.
 func (s *{{$store}}) Delete{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}) error {
-	const query = "DELETE FROM {{.Table}} WHERE {{.PrimaryKey.Column}} = $1"
+	const query = `DELETE FROM {{.Table}} WHERE {{.PrimaryKey.Column}} = $1`
 
 	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		_, err := dbtx.ExecContext(ctx, query, key)
@@ -281,7 +281,7 @@ func (s *{{$store}}) Delete{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type
 func (s *{{$store}}) Delete{{.Name}}ByField(ctx context.Context, field string, v interface{}) error {
 	var qb endo.Builder
 	query := qb.
-		Write("DELETE FROM {{.Table}}").
+		Write(`DELETE FROM {{.Table}}`).
 		Writef(" WHERE %s = $1", field).
 		String()
 	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
