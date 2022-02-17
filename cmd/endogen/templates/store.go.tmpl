@@ -20,83 +20,42 @@ type {{.Store}} struct {
 
 const (
 	querySelect{{.Name}} = `{{template "querySelect" .}} `
-	queryReturning{{.Name}} = ` {{template "queryReturning" .}}`
+	queryReturn{{.Name}} = ` {{template "queryReturning" .}}`
+	querySort{{.Name}} = `{{if .Sort}} ORDER BY {{.Sort}} {{end}}`
 )
 
-{{if .PrimaryKey}}
-// Get{{.Name}} finds the {{.Name}} identified by the given key.
-func (s *{{$store}}) Get{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
-	const query = querySelect{{.Name}} + `WHERE {{.PrimaryKey.Column}} = $1`
-
-	var e {{.PackagePrefix}}{{.Type}}
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		row := dbtx.QueryRowContext(ctx, query, key)
-		return scan{{.Name}}(&e, row)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &e, nil
-}
-{{end}}
-
-// Get{{.Name}}ByField finds the {{.Name}} where field equals v.
-// Please be aware that field is not protected against SQL injection attacks.
-func (s *{{$store}}) Get{{.Name}}ByField(ctx context.Context, field string, v interface{}) (*{{.PackagePrefix}}{{.Type}}, error) {
-	var qb endo.Builder
-	query := qb.
-		Write(querySelect{{.Name}}).
-		Writef("WHERE %s = $1", field).
-		String()
-
-	var e {{.PackagePrefix}}{{.Type}}
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		row := dbtx.QueryRowContext(ctx, query, v)
-		return scan{{.Name}}(&e, row)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &e, nil
-}
-
-// Get{{.Plural}} gets all {{.Plural}} from the database.
-func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions) ([]*{{.PackagePrefix}}{{.Type}}, error) {
-	const query = querySelect{{.Name}} +
-	{{- if .OrderBy -}}
-		`ORDER BY {{ .OrderBy }} ` +
-	{{- end -}}
-	"LIMIT $1 OFFSET $2"
-	limit, offset := po.Args()
-
-	var c []*{{.PackagePrefix}}{{.Type}}
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		rows, err := dbtx.QueryContext(ctx, query, limit, offset)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		c, err = scan{{.Name}}Rows(rows)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
-}
-
-// Get{{.Plural}}Filtered gets all {{.Plural}} with filters applied, from the database.
-func (s *{{$store}}) Get{{.Plural}}Filtered(ctx context.Context, po endo.PageOptions, filters ...endo.KeyValue) ([]*{{.PackagePrefix}}{{.Type}}, error) {
+// Get{{.Name}} retrieves the first {{.Name}} with the filters applied. The default sorting of {{.Name}} is used.
+func (s *{{$store}}) Get{{.Name}}(ctx context.Context, filters ...endo.KeyValue) (*{{.PackagePrefix}}{{.Type}}, error) {
 	var qb endo.Builder
 	qb.Write(querySelect{{.Name}})
 	if 0 < len(filters) {
 		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
-	{{ if .OrderBy -}}
-	qb.Write(`ORDER BY {{ .OrderBy }} `)
+	qb.Write({{if .Sort}} querySort{{.Name}} + {{end}} "LIMIT 1")
+	query, args := qb.Build()
+
+	var e {{.PackagePrefix}}{{.Type}}
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+		row := dbtx.QueryRowContext(ctx, query, args...)
+		return scan{{.Name}}(&e, row)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &e, nil
+}
+
+// Get{{.Plural}} retrieves all {{.Plural}} with the filters applied, within the bounds of the page.
+// The default sorting of {{.Name}} is used.
+func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions, filters ...endo.KeyValue) ([]*{{.PackagePrefix}}{{.Type}}, error) {
+	var qb endo.Builder
+	qb.Write(querySelect{{.Name}})
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
+	}
+	{{ if .Sort -}}
+	qb.Write(querySort{{.Name}})
 	{{ end -}}
 	limit, offset := po.Args()
 	qb.WriteWithParams("LIMIT {} OFFSET {}", limit, offset)
@@ -118,10 +77,10 @@ func (s *{{$store}}) Get{{.Plural}}Filtered(ctx context.Context, po endo.PageOpt
 
 {{if not .ReadOnly}}
 
-// Create{{.Name}} adds {{.Name}} to the database. It returns the created {{.Name}}.
+// Create{{.Name}} inserts a {{.Name}} record. On success, it returns the created record.
 func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{.PackagePrefix}}{{.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
 	const query = `{{template "queryInsert" .}} ` +
-		queryReturning{{.Name}}
+		queryReturn{{.Name}}
 	
 	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
@@ -139,46 +98,24 @@ func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{.PackagePrefix}}{{
 }
 
 {{if not .Immutable}}
-{{if .PrimaryKey}}
-// Update{{.Name}} updates the {{.Name}} identified by the given key.
-func (s *{{$store}}) Update{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, e {{.PackagePrefix}}{{.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
-	const query = `{{template "queryUpdate" .}} WHERE {{.PrimaryKey.Column}} = ${{ lastArg (.Fields true | toColumns) }} ` +
-		queryReturning{{.Name}}
 
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		row := dbtx.QueryRowContext(ctx, query,
-			{{- range .Fields true }}
-			e.{{.Name}},
-			{{- end }}
-			key,
-		)
-		return scan{{.Name}}(&e, row)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &e, nil
-}
-{{end}}
-
-// Update{{.Name}}ByField updates the {{.Name}} to the given e where field equals v.
-// Please be aware that field is not protected against SQL injection attacks.
-func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v interface{}, e {{.PackagePrefix}}{{.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
+// Update{{.Name}} updates the first {{.Name}} with the filters applied. The default sorting of {{.Name}} is used.
+// On success, it returns the updated record.
+func (s *{{$store}}) Update{{.Name}}(ctx context.Context, e {{.PackagePrefix}}{{.Type}}, filters ...endo.KeyValue) (*{{.PackagePrefix}}{{.Type}}, error) {
 	var qb endo.Builder
-	query := qb.
-		Write(`{{template "queryUpdate" .}} `).
-		Writef("WHERE %s = ${{ lastArg (.Fields true | toColumns) }} ", field).
-		Write(queryReturning{{.Name}}).
-		String()
+	qb.WriteWithArgs(`{{template "queryUpdate" .}} `,
+		{{- range .Fields true }}
+		e.{{.Name}},
+		{{- end }}
+	)
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
+	}
+	qb.Write({{if .Sort}} querySort{{.Name}} + {{end}} "LIMIT 1" + queryReturn{{.Name}})
+	query, args := qb.Build()
 
 	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		row := dbtx.QueryRowContext(ctx, query,
-			{{- range .Fields true }}
-			e.{{.Name}},
-			{{- end }}
-			v,
-		)
+		row := dbtx.QueryRowContext(ctx, query, args...)
 		return scan{{.Name}}(&e, row)
 	})
 	if err != nil {
@@ -192,9 +129,9 @@ func (s *{{$store}}) Update{{.Name}}ByField(ctx context.Context, field string, v
 {{template "patchType" .}}
 {{end}}
 
-{{if .PrimaryKey}}
-// Patch{{.Name}} updates the {{.Name}} identified by the given key, using the patch p.
-func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}, p {{.Patch.PackagePrefix}}{{.Patch.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
+// Patch{{.Name}} updates the first {{.Name}} using patch with the filters applied. The default sorting of {{.Name}} is used.
+// On success, it returns the updated record.
+func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, p {{.Patch.PackagePrefix}}{{.Patch.Type}}, filters ...endo.KeyValue) (*{{.PackagePrefix}}{{.Type}}, error) {
 	var fieldUpdates []endo.KeyValue
 	{{range .Patch.Fields true}}
 	if p.{{.Name}} != nil {
@@ -204,17 +141,17 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 		})
 	}
 	{{- end}}
-	if len(fieldUpdates) == 0 {
-		return nil, endo.ErrNoChange
+	if len(fieldUpdates) < 1 {
+		return nil, endo.ErrEmptyUpdate
 	}
 
 	var qb endo.Builder
-	query, args := qb.
-		Write(`UPDATE {{.Table}} SET `).
-		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
-		WriteWithParams(` WHERE {{.PrimaryKey.Column}} = {} `, key).
-		Write(queryReturning{{.Name}}).
-		Build()
+	qb.Write(`UPDATE {{.Table}} SET `).WriteKeyValues("%s = {}", ", ", fieldUpdates...).Write(" ")
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
+	}
+	qb.Write({{if .Sort}} querySort{{.Name}} + {{end}} "LIMIT 1" + queryReturn{{.Name}})
+	query, args := qb.Build()
 
 	var e {{.PackagePrefix}}{{.Type}}
 	err := s.TX(ctx, endo.TxMutation, func (dbtx endo.DBTX) error {
@@ -228,64 +165,18 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}
 }
 {{end}}
 
-// Patch{{.Name}}ByField updates the {{.Name}} using the given patch p where field equals v.
-// Please be aware that field is not protected against SQL injection attacks.
-func (s *{{$store}}) Patch{{.Name}}ByField(ctx context.Context, field string, v interface{}, p {{.Patch.PackagePrefix}}{{.Patch.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
-	var fieldUpdates []endo.KeyValue
-	{{range .Patch.Fields true}}
-	if p.{{.Name}} != nil {
-		fieldUpdates = append(fieldUpdates, endo.KeyValue{
-			Key:   `{{.Column}}`,
-			Value: *p.{{.Name}},
-		})
-	}
-	{{- end}}
-	if len(fieldUpdates) == 0 {
-		return nil, endo.ErrNoChange
-	}
-
+// Delete{{.Name}} deletes the first {{.Name}} with the filters applied. The default sorting of {{.Name}} is used.
+func (s *{{$store}}) Delete{{.Name}}(ctx context.Context, filters ...endo.KeyValue) error {
 	var qb endo.Builder
-	query, args := qb.
-		Write(`UPDATE {{.Table}} SET `).
-		WriteKeyValues("%s = {}", ", ", fieldUpdates...).
-		Writef(" WHERE %s", field).WriteWithParams(" = {} ", v).
-		Write(queryReturning{{.Name}}).
-		Build()
-
-	var e {{.PackagePrefix}}{{.Type}}
-	err := s.TX(ctx, endo.TxMutation, func (dbtx endo.DBTX) error {
-		return scan{{.Name}}(&e, dbtx.QueryRowContext(ctx, query, args...))
-	})
-	if err != nil {
-		return nil, err
+	qb.Write(`DELETE FROM {{.Table}} `)
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
-
-	return &e, nil
-}
-{{end}}
-
-{{if .PrimaryKey}}
-// Delete{{.Name}} deletes the {{.Name}} identified by the given key.
-func (s *{{$store}}) Delete{{.Name}}(ctx context.Context, key {{.PrimaryKey.Type}}) error {
-	const query = `DELETE FROM {{.Table}} WHERE {{.PrimaryKey.Column}} = $1`
+	qb.Write({{if .Sort}} querySort{{.Name}} + {{end}} "LIMIT 1")
+	query, args := qb.Build()
 
 	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
-		_, err := dbtx.ExecContext(ctx, query, key)
-		return err
-	})
-}
-{{end}}
-
-// Delete{{.Name}}ByField deletes the {{.Name}} where field equals v.
-// Please be aware that field is not protected against SQL injection attacks.
-func (s *{{$store}}) Delete{{.Name}}ByField(ctx context.Context, field string, v interface{}) error {
-	var qb endo.Builder
-	query := qb.
-		Write(`DELETE FROM {{.Table}}`).
-		Writef(" WHERE %s = $1", field).
-		String()
-	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
-		_, err := dbtx.ExecContext(ctx, query, v)
+		_, err := dbtx.ExecContext(ctx, query, args...)
 		return err
 	})
 }

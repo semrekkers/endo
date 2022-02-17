@@ -10,77 +10,42 @@ import (
 )
 
 const (
-	querySelectEffectiveRole    = `SELECT role_id, role_name FROM effective_roles `
-	queryReturningEffectiveRole = ` RETURNING role_id, role_name`
+	querySelectEffectiveRole = `SELECT role_id, role_name FROM effective_roles `
+	queryReturnEffectiveRole = ` RETURNING role_id, role_name`
+	querySortEffectiveRole   = ` ORDER BY user_id, role_id `
 )
 
-// GetEffectiveRole finds the EffectiveRole identified by the given key.
-func (s *Store) GetEffectiveRole(ctx context.Context, key int) (*EffectiveRole, error) {
-	const query = querySelectEffectiveRole + "WHERE user_id = $1"
-
-	var e EffectiveRole
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		row := dbtx.QueryRowContext(ctx, query, key)
-		return scanEffectiveRole(&e, row)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &e, nil
-}
-
-// GetEffectiveRoleByField finds the EffectiveRole where field equals v.
-// Please be aware that field is not protected against SQL injection attacks.
-func (s *Store) GetEffectiveRoleByField(ctx context.Context, field string, v interface{}) (*EffectiveRole, error) {
-	var qb endo.Builder
-	query := qb.
-		Write(querySelectEffectiveRole).
-		Writef("WHERE %s = $1", field).
-		String()
-
-	var e EffectiveRole
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		row := dbtx.QueryRowContext(ctx, query, v)
-		return scanEffectiveRole(&e, row)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &e, nil
-}
-
-// GetEffectiveRoles gets all EffectiveRoles from the database.
-func (s *Store) GetEffectiveRoles(ctx context.Context, po endo.PageOptions) ([]*EffectiveRole, error) {
-	const query = querySelectEffectiveRole + "ORDER BY user_id, role_id " + "LIMIT $1 OFFSET $2"
-	limit, offset := po.Args()
-
-	var c []*EffectiveRole
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		rows, err := dbtx.QueryContext(ctx, query, limit, offset)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-		c, err = scanEffectiveRoleRows(rows)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
-}
-
-// GetEffectiveRolesFiltered gets all EffectiveRoles with filters applied, from the database.
-func (s *Store) GetEffectiveRolesFiltered(ctx context.Context, po endo.PageOptions, filters ...endo.KeyValue) ([]*EffectiveRole, error) {
+// GetEffectiveRole retrieves the first EffectiveRole with the filters applied. The default sorting of EffectiveRole is used.
+func (s *Store) GetEffectiveRole(ctx context.Context, filters ...endo.KeyValue) (*EffectiveRole, error) {
 	var qb endo.Builder
 	qb.Write(querySelectEffectiveRole)
 	if 0 < len(filters) {
 		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
-	qb.Write("ORDER BY user_id, role_id ")
+	qb.Write(querySortEffectiveRole + "LIMIT 1")
+	query, args := qb.Build()
+
+	var e EffectiveRole
+	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
+		row := dbtx.QueryRowContext(ctx, query, args...)
+		return scanEffectiveRole(&e, row)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &e, nil
+}
+
+// GetEffectiveRoles retrieves all EffectiveRoles with the filters applied, within the bounds of the page.
+// The default sorting of EffectiveRole is used.
+func (s *Store) GetEffectiveRoles(ctx context.Context, po endo.PageOptions, filters ...endo.KeyValue) ([]*EffectiveRole, error) {
+	var qb endo.Builder
+	qb.Write(querySelectEffectiveRole)
+	if 0 < len(filters) {
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
+	}
+	qb.Write(querySortEffectiveRole)
 	limit, offset := po.Args()
 	qb.WriteWithParams("LIMIT {} OFFSET {}", limit, offset)
 	query, args := qb.Build()

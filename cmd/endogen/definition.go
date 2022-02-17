@@ -45,8 +45,7 @@ type model struct {
 	Immutable     bool   // model is immutable (only create, no updates)
 	Plural        string // plural of name
 	Table         string // table name in database
-	PrimaryKey    *field // primary key field, if any
-	OrderBy       string // order by clause to use for result set, if any
+	Sort          string // sort order to use for result set, if any
 
 	Patch *model // patch type of this model
 
@@ -54,13 +53,10 @@ type model struct {
 }
 
 type field struct {
-	Name       string // field name in source code
-	Column     string // column name in model
-	Type       string // field type in source code
-	PrimaryKey bool   // whether this field is a primary key
-	Auto       bool   // whether this is an automatic field
-	Exclude    bool   // whether this field is excluded from the model
-	ReadOnly   bool   // whether this field is read-only
+	Name     string // field name in source code
+	Column   string // column name in model
+	Type     string // field type in source code
+	ReadOnly bool   // whether this field is read-only
 }
 
 // Fields returns the fields of the model. If forWrite is true, only
@@ -68,7 +64,7 @@ type field struct {
 func (m *model) Fields(forWrite bool) []*field {
 	fields, n := make([]*field, len(m.fields)), 0
 	for _, field := range m.fields {
-		if field.Exclude || (forWrite && (field.ReadOnly || field.Auto)) {
+		if forWrite && field.ReadOnly {
 			continue
 		}
 		fields[n] = field
@@ -154,7 +150,7 @@ func (d *definition) addModel(name, comment string, s *ast.StructType) error {
 		ReadOnly:      d.ReadOnly,
 		Plural:        args["plural"],
 		Table:         args["table"],
-		OrderBy:       args["order by"],
+		Sort:          args["sort"],
 	}
 
 	if arg := args["read-only"]; arg != "" {
@@ -175,11 +171,6 @@ func (d *definition) addModel(name, comment string, s *ast.StructType) error {
 	for _, field := range s.Fields.List {
 		c := field
 		m.addFields(d, c)
-	}
-
-	if m.OrderBy == "" && m.PrimaryKey != nil {
-		// If a primary key is present, use it as the default order by, unless otherwise specified.
-		m.OrderBy = m.PrimaryKey.Column
 	}
 
 	d.Models = append(d.Models, &m)
@@ -237,7 +228,7 @@ func (d *definition) newPatchTypeOf(b *model) *model {
 		Patches:  b.Type,
 	}
 	for _, bField := range b.fields {
-		if bField.PrimaryKey || bField.Auto || bField.Exclude || bField.ReadOnly {
+		if bField.ReadOnly {
 			continue
 		}
 		m.fields = append(m.fields, &field{
@@ -257,12 +248,12 @@ func (m *model) addFields(d *definition, f *ast.Field) error {
 	typeString := sprintNode(fieldType)
 
 	var (
-		column                                    string
-		isPrimary, isAuto, isExcluded, isReadOnly bool
+		column         string
+		readOnly, sort bool
 	)
 	if f.Tag != nil {
 		// Parse the struct tag.
-		// Example tag: `db:"column,primary,exclude,readonly"`.
+		// Example tag: `db:"column,readonly,sort"`.
 		tag := reflect.StructTag(f.Tag.Value[1 : len(f.Tag.Value)-1]).Get("db")
 		parts := strings.Split(tag, ",")
 		column = parts[0]
@@ -271,14 +262,10 @@ func (m *model) addFields(d *definition, f *ast.Field) error {
 		}
 		for _, option := range parts[1:] {
 			switch option {
-			case "primary":
-				isPrimary = true
-			case "auto":
-				isAuto = true
-			case "exclude":
-				isExcluded = true
 			case "readonly":
-				isReadOnly = true
+				readOnly = true
+			case "sort":
+				sort = true
 			}
 		}
 	}
@@ -299,20 +286,17 @@ func (m *model) addFields(d *definition, f *ast.Field) error {
 		}
 
 		spec := &field{
-			Name:       typeName,
-			Column:     column,
-			Type:       typeString,
-			PrimaryKey: isPrimary,
-			Auto:       isAuto,
-			Exclude:    isExcluded,
-			ReadOnly:   isReadOnly,
+			Name:     typeName,
+			Column:   column,
+			Type:     typeString,
+			ReadOnly: readOnly,
 		}
 		if spec.Column == "" {
 			spec.Column = spec.Name
 		}
 
-		if isPrimary {
-			m.PrimaryKey = spec
+		if sort && m.Sort == "" {
+			m.Sort = spec.Column
 		}
 
 		m.fields = append(m.fields, spec)

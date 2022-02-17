@@ -33,6 +33,8 @@ const (
 var (
 	// ErrNotFound is returned when no entity was found.
 	ErrNotFound = sql.ErrNoRows
+	// ErrEmptyUpdate is returned when a patch wouldn't modify any record.
+	ErrEmptyUpdate = errors.New("this update would not modify anything")
 )
 
 // A TxFunc opens a new abstact database context and executes fn with it.
@@ -75,8 +77,3 @@ func WrapTX(tx DBTX) TxFunc {
 		return fn(tx)
 	}
 }
-
-var (
-	// ErrNoChange is returned when the patch is empty.
-	ErrNoChange = errors.New("no change in update")
-)

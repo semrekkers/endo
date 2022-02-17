@@ -36,7 +36,7 @@ func (s *Store) GetExpandedUsers(ctx context.Context, po endo.PageOptions, filte
 		// Create the transactional Store (txs).
 		txs := Store{endo.WrapTX(dbtx)}
 
-		c, err = txs.GetUsersFiltered(ctx, po, filters...)
+		c, err = txs.GetUsers(ctx, po, filters...)
 		if err != nil {
 			return err
 		}

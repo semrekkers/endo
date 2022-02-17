@@ -29,11 +29,6 @@ func mapToParams(a []string) []string {
 	return v
 }
 
-// lastArg returns the last argument count of a.
-func lastArg(a []string) int {
-	return len(a) + 1
-}
-
 // toFieldUpdates maps a to "<fieldName> = $<placedParameter>".
 func toFieldUpdates(a []string) []string {
 	v := make([]string, len(a))

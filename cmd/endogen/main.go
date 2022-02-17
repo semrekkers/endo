@@ -145,7 +145,6 @@ func getTemplates() *template.Template {
 		"toColumns":      toColumns,
 		"joinStrings":    joinStrings,
 		"mapToParams":    mapToParams,
-		"lastArg":        lastArg,
 		"toFieldUpdates": toFieldUpdates,
 	})
 	_, err := v.ParseFS(templateFS, "templates/*")
