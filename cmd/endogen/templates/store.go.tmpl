@@ -81,14 +81,15 @@ func (s *{{$store}}) Get{{.Plural}}(ctx context.Context, po endo.PageOptions, fi
 {{if not .ReadOnly}}
 
 // Create{{.Name}} inserts a {{.Name}} record. On success, it returns the created record.
-func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{.PackagePrefix}}{{.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
+func (s *{{$store}}) Create{{.Name}}(ctx context.Context, in {{.PackagePrefix}}{{.Type}}) (*{{.PackagePrefix}}{{.Type}}, error) {
 	const query = `{{template "queryInsert" .}} ` +
 		queryReturn{{.Name}}
-	
+
+	var e {{.PackagePrefix}}{{.Type}}
 	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
 			{{- range .Fields true }}
-			e.{{.Name}},
+			in.{{.Name}},
 			{{- end }}
 		)
 		return scan{{.Name}}(&e, row)
@@ -104,11 +105,11 @@ func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{.PackagePrefix}}{{
 
 // Update{{.Plural}} updates all {{.Plural}} that satisfy the condition of filters. The default sorting of {{.Name}} is used.
 // On success, it returns the updated records.
-func (s *{{$store}}) Update{{.Plural}}(ctx context.Context, e {{.PackagePrefix}}{{.Type}}, filters ...endo.KeyValue) ([]*{{.PackagePrefix}}{{.Type}}, error) {
+func (s *{{$store}}) Update{{.Plural}}(ctx context.Context, in {{.PackagePrefix}}{{.Type}}, filters ...endo.KeyValue) ([]*{{.PackagePrefix}}{{.Type}}, error) {
 	var qb endo.Builder
 	qb.WriteWithArgs(`{{template "queryUpdate" .}} `,
 		{{- range .Fields true }}
-		e.{{.Name}},
+		in.{{.Name}},
 		{{- end }}
 	)
 	if 0 < len(filters) {
