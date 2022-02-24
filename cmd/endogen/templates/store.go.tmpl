@@ -19,8 +19,11 @@ type {{.Store}} struct {
 {{range .Models}}
 
 const (
+	// querySelect{{.Name}} is a prepared SQL query for selecting a {{.Name}}.
 	querySelect{{.Name}} = `{{template "querySelect" .}} `
+	// queryReturn{{.Name}} can be used as a part of a SQL query for returning a {{.Name}}.
 	queryReturn{{.Name}} = ` {{template "queryReturning" .}}`
+	// querySort{{.Name}} is the default sorting order of {{.Name}}.
 	querySort{{.Name}} = `{{if .Sort}} ORDER BY {{.Sort}} {{end}}`
 )
 
@@ -99,9 +102,9 @@ func (s *{{$store}}) Create{{.Name}}(ctx context.Context, e {{.PackagePrefix}}{{
 
 {{if not .Immutable}}
 
-// Update{{.Name}} updates the first {{.Name}} with the filters applied. The default sorting of {{.Name}} is used.
-// On success, it returns the updated record.
-func (s *{{$store}}) Update{{.Name}}(ctx context.Context, e {{.PackagePrefix}}{{.Type}}, filters ...endo.KeyValue) (*{{.PackagePrefix}}{{.Type}}, error) {
+// Update{{.Plural}} updates all {{.Plural}} that satisfy the condition of filters. The default sorting of {{.Name}} is used.
+// On success, it returns the updated records.
+func (s *{{$store}}) Update{{.Plural}}(ctx context.Context, e {{.PackagePrefix}}{{.Type}}, filters ...endo.KeyValue) ([]*{{.PackagePrefix}}{{.Type}}, error) {
 	var qb endo.Builder
 	qb.WriteWithArgs(`{{template "queryUpdate" .}} `,
 		{{- range .Fields true }}
@@ -111,27 +114,30 @@ func (s *{{$store}}) Update{{.Name}}(ctx context.Context, e {{.PackagePrefix}}{{
 	if 0 < len(filters) {
 		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
-	qb.Write({{if .Sort}} querySort{{.Name}} + {{end}} "LIMIT 1" + queryReturn{{.Name}})
+	qb.Write(queryReturn{{.Name}})
 	query, args := qb.Build()
 
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		row := dbtx.QueryRowContext(ctx, query, args...)
-		return scan{{.Name}}(&e, row)
+	var c []*{{.PackagePrefix}}{{.Type}}
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scan{{.Name}}Rows(rows)
+		return err
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	return &e, nil
+	return c, err
 }
 
 {{if eq $patchTypeMode "include"}}
 {{template "patchType" .}}
 {{end}}
 
-// Patch{{.Name}} updates the first {{.Name}} using patch with the filters applied. The default sorting of {{.Name}} is used.
-// On success, it returns the updated record.
-func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, p {{.Patch.PackagePrefix}}{{.Patch.Type}}, filters ...endo.KeyValue) (*{{.PackagePrefix}}{{.Type}}, error) {
+// Patch{{.Plural}} updates all {{.Plural}} using patch that satisfy the condition of filters. The default sorting of {{.Name}} is used.
+// On success, it returns the updated records.
+func (s *{{$store}}) Patch{{.Plural}}(ctx context.Context, p {{.Patch.PackagePrefix}}{{.Patch.Type}}, filters ...endo.KeyValue) ([]*{{.PackagePrefix}}{{.Type}}, error) {
 	var fieldUpdates []endo.KeyValue
 	{{range .Patch.Fields true}}
 	if p.{{.Name}} != nil {
@@ -150,39 +156,51 @@ func (s *{{$store}}) Patch{{.Name}}(ctx context.Context, p {{.Patch.PackagePrefi
 	if 0 < len(filters) {
 		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
-	qb.Write({{if .Sort}} querySort{{.Name}} + {{end}} "LIMIT 1" + queryReturn{{.Name}})
+	qb.Write(queryReturn{{.Name}})
 	query, args := qb.Build()
 
-	var e {{.PackagePrefix}}{{.Type}}
-	err := s.TX(ctx, endo.TxMutation, func (dbtx endo.DBTX) error {
-		return scan{{.Name}}(&e, dbtx.QueryRowContext(ctx, query, args...))
+	var c []*{{.PackagePrefix}}{{.Type}}
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scan{{.Name}}Rows(rows)
+		return err
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	return &e, nil
+	return c, err
 }
 {{end}}
 
-// Delete{{.Name}} deletes the first {{.Name}} with the filters applied. The default sorting of {{.Name}} is used.
-func (s *{{$store}}) Delete{{.Name}}(ctx context.Context, filters ...endo.KeyValue) error {
+// Delete{{.Plural}} deletes all {{.Plural}} that satisfy the condition of filters. The default sorting of {{.Name}} is used.
+// On success, it returns the number of deleted records.
+func (s *{{$store}}) Delete{{.Plural}}(ctx context.Context, filters ...endo.KeyValue) (int64, error) {
 	var qb endo.Builder
 	qb.Write(`DELETE FROM {{.Table}} `)
 	if 0 < len(filters) {
-		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...)
 	}
-	qb.Write({{if .Sort}} querySort{{.Name}} + {{end}} "LIMIT 1")
 	query, args := qb.Build()
 
-	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
-		_, err := dbtx.ExecContext(ctx, query, args...)
+	var n int64
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+		result, err := dbtx.ExecContext(ctx, query, args...)
+		if err != nil {
+			return err	
+		}
+		n, err = result.RowsAffected()
 		return err
 	})
+
+	return n, err
 }
 
 {{end}}
 
+// scan{{.Name}} scans a single {{.Name}} passed by e, using scanner s.
+// This works best if querySelect{{.Name}} is used as query.
 func scan{{.Name}}(e *{{.PackagePrefix}}{{.Type}}, s endo.Scanner) error {
 	return s.Scan(
 		{{- range .Fields false }}
@@ -191,6 +209,8 @@ func scan{{.Name}}(e *{{.PackagePrefix}}{{.Type}}, s endo.Scanner) error {
 	)
 }
 
+// scan{{.Name}}Rows scans all {{.Plural}} using scanner s, and returns the results.
+// This works best if querySelect{{.Name}} is used as query.
 func scan{{.Name}}Rows(rows *sql.Rows) ([]*{{.PackagePrefix}}{{.Type}}, error) {
 	var c []*{{.PackagePrefix}}{{.Type}}
 	for rows.Next() {
