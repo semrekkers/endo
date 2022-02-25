@@ -16,9 +16,12 @@ type Store struct {
 }
 
 const (
+	// querySelectUser is a prepared SQL query for selecting a User.
 	querySelectUser = `SELECT id, email, first_name, last_name, display_name, email_verified, password_hash, created_at, updated_at FROM users `
+	// queryReturnUser can be used as a part of a SQL query for returning a User.
 	queryReturnUser = ` RETURNING id, email, first_name, last_name, display_name, email_verified, password_hash, created_at, updated_at`
-	querySortUser   = ` ORDER BY id `
+	// querySortUser is the default sorting order of User.
+	querySortUser = ` ORDER BY id `
 )
 
 // GetUser retrieves the first User with the filters applied. The default sorting of User is used.
@@ -71,19 +74,20 @@ func (s *Store) GetUsers(ctx context.Context, po endo.PageOptions, filters ...en
 }
 
 // CreateUser inserts a User record. On success, it returns the created record.
-func (s *Store) CreateUser(ctx context.Context, e User) (*User, error) {
+func (s *Store) CreateUser(ctx context.Context, in User) (*User, error) {
 	const query = `INSERT INTO users (email, first_name, last_name, email_verified, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7) ` +
 		queryReturnUser
 
+	var e User
 	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
-			e.Email,
-			e.FirstName,
-			e.LastName,
-			e.EmailVerified,
-			e.PasswordHash,
-			e.CreatedAt,
-			e.UpdatedAt,
+			in.Email,
+			in.FirstName,
+			in.LastName,
+			in.EmailVerified,
+			in.PasswordHash,
+			in.CreatedAt,
+			in.UpdatedAt,
 		)
 		return scanUser(&e, row)
 	})
@@ -94,34 +98,37 @@ func (s *Store) CreateUser(ctx context.Context, e User) (*User, error) {
 	return &e, nil
 }
 
-// UpdateUser updates the first User with the filters applied. The default sorting of User is used.
-// On success, it returns the updated record.
-func (s *Store) UpdateUser(ctx context.Context, e User, filters ...endo.KeyValue) (*User, error) {
+// UpdateUsers updates all Users that satisfy the condition of filters. The default sorting of User is used.
+// On success, it returns the updated records.
+func (s *Store) UpdateUsers(ctx context.Context, in User, filters ...endo.KeyValue) ([]*User, error) {
 	var qb endo.Builder
 	qb.WriteWithArgs(`UPDATE users SET email = $1, first_name = $2, last_name = $3, email_verified = $4, password_hash = $5, created_at = $6, updated_at = $7 `,
-		e.Email,
-		e.FirstName,
-		e.LastName,
-		e.EmailVerified,
-		e.PasswordHash,
-		e.CreatedAt,
-		e.UpdatedAt,
+		in.Email,
+		in.FirstName,
+		in.LastName,
+		in.EmailVerified,
+		in.PasswordHash,
+		in.CreatedAt,
+		in.UpdatedAt,
 	)
 	if 0 < len(filters) {
 		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
-	qb.Write(querySortUser + "LIMIT 1" + queryReturnUser)
+	qb.Write(queryReturnUser)
 	query, args := qb.Build()
 
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		row := dbtx.QueryRowContext(ctx, query, args...)
-		return scanUser(&e, row)
+	var c []*User
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scanUserRows(rows)
+		return err
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	return &e, nil
+	return c, err
 }
 
 // UserPatch (partially) patches: User.
@@ -135,9 +142,9 @@ type UserPatch struct {
 	UpdatedAt     *time.Time      `db:"updated_at"`
 }
 
-// PatchUser updates the first User using patch with the filters applied. The default sorting of User is used.
-// On success, it returns the updated record.
-func (s *Store) PatchUser(ctx context.Context, p UserPatch, filters ...endo.KeyValue) (*User, error) {
+// PatchUsers updates all Users using patch that satisfy the condition of filters. The default sorting of User is used.
+// On success, it returns the updated records.
+func (s *Store) PatchUsers(ctx context.Context, p UserPatch, filters ...endo.KeyValue) ([]*User, error) {
 	var fieldUpdates []endo.KeyValue
 
 	if p.Email != nil {
@@ -191,36 +198,48 @@ func (s *Store) PatchUser(ctx context.Context, p UserPatch, filters ...endo.KeyV
 	if 0 < len(filters) {
 		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
-	qb.Write(querySortUser + "LIMIT 1" + queryReturnUser)
+	qb.Write(queryReturnUser)
 	query, args := qb.Build()
 
-	var e User
+	var c []*User
 	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
-		return scanUser(&e, dbtx.QueryRowContext(ctx, query, args...))
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scanUserRows(rows)
+		return err
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	return &e, nil
+	return c, err
 }
 
-// DeleteUser deletes the first User with the filters applied. The default sorting of User is used.
-func (s *Store) DeleteUser(ctx context.Context, filters ...endo.KeyValue) error {
+// DeleteUsers deletes all Users that satisfy the condition of filters. The default sorting of User is used.
+// On success, it returns the number of deleted records.
+func (s *Store) DeleteUsers(ctx context.Context, filters ...endo.KeyValue) (int64, error) {
 	var qb endo.Builder
 	qb.Write(`DELETE FROM users `)
 	if 0 < len(filters) {
-		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...)
 	}
-	qb.Write(querySortUser + "LIMIT 1")
 	query, args := qb.Build()
 
-	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
-		_, err := dbtx.ExecContext(ctx, query, args...)
+	var n int64
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+		result, err := dbtx.ExecContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		n, err = result.RowsAffected()
 		return err
 	})
+
+	return n, err
 }
 
+// scanUser scans a single User passed by e, using scanner s.
+// This works best if querySelectUser is used as query.
 func scanUser(e *User, s endo.Scanner) error {
 	return s.Scan(
 		&e.ID,
@@ -235,6 +254,8 @@ func scanUser(e *User, s endo.Scanner) error {
 	)
 }
 
+// scanUserRows scans all Users using scanner s, and returns the results.
+// This works best if querySelectUser is used as query.
 func scanUserRows(rows *sql.Rows) ([]*User, error) {
 	var c []*User
 	for rows.Next() {
@@ -248,9 +269,12 @@ func scanUserRows(rows *sql.Rows) ([]*User, error) {
 }
 
 const (
+	// querySelectRole is a prepared SQL query for selecting a Role.
 	querySelectRole = `SELECT id, name FROM roles `
+	// queryReturnRole can be used as a part of a SQL query for returning a Role.
 	queryReturnRole = ` RETURNING id, name`
-	querySortRole   = ` ORDER BY id `
+	// querySortRole is the default sorting order of Role.
+	querySortRole = ` ORDER BY id `
 )
 
 // GetRole retrieves the first Role with the filters applied. The default sorting of Role is used.
@@ -303,13 +327,14 @@ func (s *Store) GetRoles(ctx context.Context, po endo.PageOptions, filters ...en
 }
 
 // CreateRole inserts a Role record. On success, it returns the created record.
-func (s *Store) CreateRole(ctx context.Context, e Role) (*Role, error) {
+func (s *Store) CreateRole(ctx context.Context, in Role) (*Role, error) {
 	const query = `INSERT INTO roles (name) VALUES ($1) ` +
 		queryReturnRole
 
+	var e Role
 	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
 		row := dbtx.QueryRowContext(ctx, query,
-			e.Name,
+			in.Name,
 		)
 		return scanRole(&e, row)
 	})
@@ -320,28 +345,31 @@ func (s *Store) CreateRole(ctx context.Context, e Role) (*Role, error) {
 	return &e, nil
 }
 
-// UpdateRole updates the first Role with the filters applied. The default sorting of Role is used.
-// On success, it returns the updated record.
-func (s *Store) UpdateRole(ctx context.Context, e Role, filters ...endo.KeyValue) (*Role, error) {
+// UpdateRoles updates all Roles that satisfy the condition of filters. The default sorting of Role is used.
+// On success, it returns the updated records.
+func (s *Store) UpdateRoles(ctx context.Context, in Role, filters ...endo.KeyValue) ([]*Role, error) {
 	var qb endo.Builder
 	qb.WriteWithArgs(`UPDATE roles SET name = $1 `,
-		e.Name,
+		in.Name,
 	)
 	if 0 < len(filters) {
 		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
-	qb.Write(querySortRole + "LIMIT 1" + queryReturnRole)
+	qb.Write(queryReturnRole)
 	query, args := qb.Build()
 
-	err := s.TX(ctx, endo.TxReadOnly, func(dbtx endo.DBTX) error {
-		row := dbtx.QueryRowContext(ctx, query, args...)
-		return scanRole(&e, row)
+	var c []*Role
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scanRoleRows(rows)
+		return err
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	return &e, nil
+	return c, err
 }
 
 // RolePatch (partially) patches: Role.
@@ -349,9 +377,9 @@ type RolePatch struct {
 	Name *string `db:"name"`
 }
 
-// PatchRole updates the first Role using patch with the filters applied. The default sorting of Role is used.
-// On success, it returns the updated record.
-func (s *Store) PatchRole(ctx context.Context, p RolePatch, filters ...endo.KeyValue) (*Role, error) {
+// PatchRoles updates all Roles using patch that satisfy the condition of filters. The default sorting of Role is used.
+// On success, it returns the updated records.
+func (s *Store) PatchRoles(ctx context.Context, p RolePatch, filters ...endo.KeyValue) ([]*Role, error) {
 	var fieldUpdates []endo.KeyValue
 
 	if p.Name != nil {
@@ -369,36 +397,48 @@ func (s *Store) PatchRole(ctx context.Context, p RolePatch, filters ...endo.KeyV
 	if 0 < len(filters) {
 		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
 	}
-	qb.Write(querySortRole + "LIMIT 1" + queryReturnRole)
+	qb.Write(queryReturnRole)
 	query, args := qb.Build()
 
-	var e Role
+	var c []*Role
 	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
-		return scanRole(&e, dbtx.QueryRowContext(ctx, query, args...))
+		rows, err := dbtx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		c, err = scanRoleRows(rows)
+		return err
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	return &e, nil
+	return c, err
 }
 
-// DeleteRole deletes the first Role with the filters applied. The default sorting of Role is used.
-func (s *Store) DeleteRole(ctx context.Context, filters ...endo.KeyValue) error {
+// DeleteRoles deletes all Roles that satisfy the condition of filters. The default sorting of Role is used.
+// On success, it returns the number of deleted records.
+func (s *Store) DeleteRoles(ctx context.Context, filters ...endo.KeyValue) (int64, error) {
 	var qb endo.Builder
 	qb.Write(`DELETE FROM roles `)
 	if 0 < len(filters) {
-		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...).Write(" ")
+		qb.Write("WHERE ").WriteKeyValues("(%s)", " AND ", filters...)
 	}
-	qb.Write(querySortRole + "LIMIT 1")
 	query, args := qb.Build()
 
-	return s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
-		_, err := dbtx.ExecContext(ctx, query, args...)
+	var n int64
+	err := s.TX(ctx, endo.TxMutation, func(dbtx endo.DBTX) error {
+		result, err := dbtx.ExecContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		n, err = result.RowsAffected()
 		return err
 	})
+
+	return n, err
 }
 
+// scanRole scans a single Role passed by e, using scanner s.
+// This works best if querySelectRole is used as query.
 func scanRole(e *Role, s endo.Scanner) error {
 	return s.Scan(
 		&e.ID,
@@ -406,6 +446,8 @@ func scanRole(e *Role, s endo.Scanner) error {
 	)
 }
 
+// scanRoleRows scans all Roles using scanner s, and returns the results.
+// This works best if querySelectRole is used as query.
 func scanRoleRows(rows *sql.Rows) ([]*Role, error) {
 	var c []*Role
 	for rows.Next() {

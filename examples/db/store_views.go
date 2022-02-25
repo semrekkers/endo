@@ -10,9 +10,12 @@ import (
 )
 
 const (
+	// querySelectEffectiveRole is a prepared SQL query for selecting a EffectiveRole.
 	querySelectEffectiveRole = `SELECT role_id, role_name FROM effective_roles `
+	// queryReturnEffectiveRole can be used as a part of a SQL query for returning a EffectiveRole.
 	queryReturnEffectiveRole = ` RETURNING role_id, role_name`
-	querySortEffectiveRole   = ` ORDER BY user_id, role_id `
+	// querySortEffectiveRole is the default sorting order of EffectiveRole.
+	querySortEffectiveRole = ` ORDER BY user_id, role_id `
 )
 
 // GetEffectiveRole retrieves the first EffectiveRole with the filters applied. The default sorting of EffectiveRole is used.
@@ -64,6 +67,8 @@ func (s *Store) GetEffectiveRoles(ctx context.Context, po endo.PageOptions, filt
 	return c, err
 }
 
+// scanEffectiveRole scans a single EffectiveRole passed by e, using scanner s.
+// This works best if querySelectEffectiveRole is used as query.
 func scanEffectiveRole(e *EffectiveRole, s endo.Scanner) error {
 	return s.Scan(
 		&e.RoleID,
@@ -71,6 +76,8 @@ func scanEffectiveRole(e *EffectiveRole, s endo.Scanner) error {
 	)
 }
 
+// scanEffectiveRoleRows scans all EffectiveRoles using scanner s, and returns the results.
+// This works best if querySelectEffectiveRole is used as query.
 func scanEffectiveRoleRows(rows *sql.Rows) ([]*EffectiveRole, error) {
 	var c []*EffectiveRole
 	for rows.Next() {
